@@ -331,13 +331,13 @@ function renderDashboard() {
         <span class="text-xs text-on-surface-variant font-bold">${s.pct}% ${t("dash.progress.done")}</span>
       </div>
       <div class="relative h-12 bg-gradient-to-r from-blue-50 to-emerald-50 rounded-xl overflow-hidden">
-        <div class="absolute inset-0 wave-bg opacity-50"></div>
-        <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-river-blue/20 to-emerald-forest/20 rounded-xl transition-all duration-1000" style="width:${s.pct}%"></div>
-        <div class="absolute top-1/2 -translate-y-1/2 raft-float transition-all duration-1000" style="left:calc(${s.pct}% - 20px)">
-          <svg width="40" height="24" viewBox="0 0 40 24"><rect x="3" y="8" width="34" height="6" rx="3" fill="#6B3E26"/><polygon points="20,0 23,8 17,8" fill="#0D6B3F"/><line x1="20" y1="0" x2="20" y2="10" stroke="#6B3E26" stroke-width="1"/></svg>
+        <div class="absolute inset-0 wave-bg"></div>
+        <div class="absolute top-0 left-0 h-full bg-gradient-to-r from-river-blue/20 to-emerald-forest/20 rounded-xl" style="width:${s.pct}%"></div>
+        <div class="absolute raft-float" style="top:50%;left:calc(${s.pct}% - 20px);transform:translateY(-50%)">
+          <svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><rect x="3" y="8" width="34" height="6" rx="3" fill="#6B3E26"/><polygon points="20,0 23,8 17,8" fill="#0D6B3F"/><line x1="20" y1="0" x2="20" y2="10" stroke="#6B3E26" stroke-width="1"/></svg>
         </div>
         <div class="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-forest">
-          <span class="material-symbols-outlined text-lg">flag</span>
+          <span class="material-symbols-outlined text-lg" aria-hidden="true">flag</span>
         </div>
       </div>
       <div class="flex justify-between mt-2 text-[10px] text-on-surface-variant font-bold">

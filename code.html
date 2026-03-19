@@ -121,35 +121,25 @@
     }
 
     @keyframes raftFloat {
-
-      0%,
-      100% {
-        transform: translateY(0)
-      }
-
-      50% {
-        transform: translateY(-4px)
-      }
+      0%, 100% { transform: translateY(-50%) }
+      50%       { transform: translateY(calc(-50% - 4px)) }
     }
 
     .raft-float {
-      animation: raftFloat 3s ease-in-out infinite
+      animation: raftFloat 3s ease-in-out infinite;
+      will-change: transform;
     }
 
     .wave-bg {
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 40'%3E%3Cpath fill='%232B6CB0' fill-opacity='0.08' d='M0,20 C240,35 480,5 720,20 C960,35 1200,5 1440,20 L1440,40 L0,40Z'/%3E%3C/svg%3E");
       background-size: 200% 100%;
-      animation: waveMove 4s linear infinite
+      background-position: 0 0;
+      animation: waveMove 6s linear infinite
     }
 
     @keyframes waveMove {
-      from {
-        background-position-x: 0
-      }
-
-      to {
-        background-position-x: -200%
-      }
+      from { background-position: 0 0 }
+      to   { background-position: -100% 0 }
     }
 
     .bg-velvet {
@@ -466,9 +456,11 @@
       box-shadow: 0 0 0 3px rgba(13,107,63,0.15);
     }
 
-    /* Reduce motion for accessibility */
+    /* Reduce motion for accessibility — exempt decorative animations */
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
+      *:not(.wave-bg):not(.raft-float):not(.drive-spinner),
+      *:not(.wave-bg):not(.raft-float):not(.drive-spinner)::before,
+      *:not(.wave-bg):not(.raft-float):not(.drive-spinner)::after {
         animation-duration: 0.01ms !important;
         transition-duration: 0.01ms !important;
       }
