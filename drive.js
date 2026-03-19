@@ -87,8 +87,16 @@ const driveQuota = {
   }
 };
 
-// === CORE API CALL ===
-async function driveApiFetch(endpoint, params = {}) {
+// === CORE API CALL (with retry + quota guard) ===
+const DRIVE_MAX_RETRIES = 3;
+const DRIVE_RETRY_BASE_MS = 1000;
+
+async function driveApiFetch(endpoint, params = {}, _retryCount = 0) {
+  // Quota guard: block calls when near daily limit
+  const q = driveQuota.getStats();
+  if (q.pct >= 95) {
+    throw new Error('API quota ≥95% — หยุดเรียก API เพื่อป้องกันค่าใช้จ่าย (quota guard)');
+  }
   params.key = DRIVE_CONFIG.API_KEY;
   const qs = new URLSearchParams(params).toString();
   const url = `${DRIVE_CONFIG.API_BASE}/${endpoint}?${qs}`;
@@ -96,7 +104,10 @@ async function driveApiFetch(endpoint, params = {}) {
   if (cached) { driveQuota.trackCacheHit(); return cached; }
   driveQuota.trackCall();
   try {
-    const res = await fetch(url, { referrerPolicy: 'no-referrer' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const res = await fetch(url, { referrerPolicy: 'no-referrer', signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) {
       driveQuota.trackError();
       const err = await res.json().catch(() => ({}));
@@ -112,15 +123,59 @@ async function driveApiFetch(endpoint, params = {}) {
       if (res.status === 403) {
         throw new Error("ไม่มีสิทธิ์เข้าถึง — ตรวจสอบว่าโฟลเดอร์แชร์เป็น 'Anyone with the link' แล้ว");
       }
+      // Retry on 429 (rate limit) or 5xx (server error)
+      if ((res.status === 429 || res.status >= 500) && _retryCount < DRIVE_MAX_RETRIES) {
+        const delay = DRIVE_RETRY_BASE_MS * Math.pow(2, _retryCount) + Math.random() * 500;
+        console.warn(`[Drive] Retry ${_retryCount + 1}/${DRIVE_MAX_RETRIES} after ${Math.round(delay)}ms (HTTP ${res.status})`);
+        await new Promise(r => setTimeout(r, delay));
+        return driveApiFetch(endpoint, { ...params, key: undefined }, _retryCount + 1);
+      }
       throw new Error(msg);
     }
     const data = await res.json();
     cacheSet(url, data);
+    driveLastSuccess = Date.now();
     return data;
   } catch (e) {
+    // Retry on network errors (timeout, offline)
+    if (e.name === 'AbortError' || e.message === 'Failed to fetch') {
+      if (_retryCount < DRIVE_MAX_RETRIES) {
+        const delay = DRIVE_RETRY_BASE_MS * Math.pow(2, _retryCount) + Math.random() * 500;
+        console.warn(`[Drive] Network retry ${_retryCount + 1}/${DRIVE_MAX_RETRIES} after ${Math.round(delay)}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        return driveApiFetch(endpoint, { ...params, key: undefined }, _retryCount + 1);
+      }
+    }
     console.error("Drive fetch failed:", e);
     throw e;
   }
+}
+
+// === CONNECTION HEALTH ===
+let driveLastSuccess = 0;
+let driveHealthTimer = null;
+
+function startDriveHealthCheck() {
+  if (driveHealthTimer) return;
+  driveHealthTimer = setInterval(async () => {
+    if (!driveReady) return;
+    // Auto-reconnect if no successful call in 10 minutes
+    if (driveLastSuccess && Date.now() - driveLastSuccess > 10 * 60 * 1000) {
+      console.log('[Drive] Health check: reconnecting...');
+      try {
+        const test = await testDriveConnection();
+        if (!test.ok) {
+          driveError = test.error;
+          driveReady = false;
+          if (typeof render === 'function') render();
+        } else {
+          driveLastSuccess = Date.now();
+        }
+      } catch(e) {
+        console.warn('[Drive] Health check failed:', e.message);
+      }
+    }
+  }, 5 * 60 * 1000); // check every 5 min
 }
 
 // === LIST FOLDERS IN A PARENT ===
@@ -303,39 +358,59 @@ async function driveFilesForCategory(catId) {
 }
 
 // === GET FILES FOR A SPECIFIC INDICATOR ===
-// Folder naming: "{indicatorNumber}{ThaiName}" e.g. "1ผู้ประสานงาน", "10การติดตาม"
+// Supported folder naming patterns:
+//   "1ผู้ประสานงาน"   — digit(s) immediately followed by Thai text
+//   "10 การติดตาม"    — digit(s) then space
+//   "1.ผู้ประสานงาน"  — digit(s) then dot
+//   "1-ผู้ประสานงาน"  — digit(s) then dash
+//   "ตัวชี้วัดที่ 1"  — Thai with trailing digit (fallback)
 function matchIndicatorNumber(name) {
-  const m = name.match(/^(\d+)/);
-  return m ? parseInt(m[1]) : null;
+  // Primary: leading digits (with optional separator)
+  const m = name.match(/^(\d+)[\s.\-_]*/);
+  if (m) return parseInt(m[1]);
+  // Secondary: Thai pattern "ข้อ N" or "ที่ N"
+  const m2 = name.match(/(?:ข้อ|ที่)\s*(\d+)/);
+  if (m2) return parseInt(m2[1]);
+  return null;
+}
+
+// Exact match check: folder number must equal indicatorId exactly (no prefix collision e.g. 1 vs 10)
+function folderMatchesIndicator(folderName, indicatorId) {
+  return matchIndicatorNumber(folderName) === indicatorId;
 }
 
 async function driveFilesForIndicator(indicatorId, catId) {
   await buildDriveFolderMap();
   const catFolderId = driveFolderMap[catId];
-  if (!catFolderId) return { files: [], subfolders: [], docContent: null };
+  if (!catFolderId) return { files: [], subfolders: [], docContent: null, matchedFolder: null };
 
   const allItems = await driveListAll(catFolderId);
   const folders = allItems.filter(f => f.mimeType === "application/vnd.google-apps.folder");
-  const files = allItems.filter(f => f.mimeType !== "application/vnd.google-apps.folder");
+  const rootFiles = allItems.filter(f => f.mimeType !== "application/vnd.google-apps.folder");
 
-  // Find subfolder whose leading number matches indicatorId
-  const matchFolder = folders.find(f => matchIndicatorNumber(f.name) === indicatorId);
+  // Find subfolder whose leading number matches indicatorId exactly
+  const matchFolder = folders.find(f => folderMatchesIndicator(f.name, indicatorId));
 
   let indicatorFiles = [];
   let docContent = null;
 
   if (matchFolder) {
+    // ✅ Matched: list files inside the indicator subfolder
     indicatorFiles = await driveFiles(matchFolder.id);
   } else {
-    // Fallback: match files by leading number
-    indicatorFiles = files.filter(f => matchIndicatorNumber(f.name) === indicatorId);
-    if (indicatorFiles.length === 0) indicatorFiles = files;
+    // Fallback: match root-level files whose name starts with indicatorId
+    indicatorFiles = rootFiles.filter(f => matchIndicatorNumber(f.name) === indicatorId);
+    // NOTE: Do NOT fall back to ALL category files — that would show wrong evidence
   }
 
   // Try to get Google Doc content for the first doc found
   const firstDoc = indicatorFiles.find(f => f.mimeType === "application/vnd.google-apps.document");
   if (firstDoc) {
-    docContent = await driveDocContent(firstDoc.id);
+    try {
+      docContent = await driveDocContent(firstDoc.id);
+    } catch(e) {
+      console.warn(`[Drive] Could not fetch doc content for indicator ${indicatorId}:`, e.message);
+    }
   }
 
   return { files: indicatorFiles, subfolders: folders, docContent, matchedFolder: matchFolder };
@@ -401,6 +476,8 @@ async function initDrive() {
       console.log(`Drive connected: ${test.folders} folders found:`, test.names);
       await buildDriveFolderMap();
       driveReady = true;
+      driveLastSuccess = Date.now();
+      startDriveHealthCheck();
     } else {
       driveError = test.error;
       console.warn("Drive connection failed:", test.error);

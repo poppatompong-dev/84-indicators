@@ -4,13 +4,29 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>อุทัยธานี Green Destination | Top 100 — 84 Indicators</title>
+  <title>84 ตัวชี้วัด | อุทัยธานี Green Destination Top 100</title>
+  <meta name="description" content="ระบบติดตามผลการดำเนินงาน 84 ตัวชี้วัด Green Destination Standard — เทศบาลเมืองอุทัยธานี มุ่งสู่การรับรอง Top 100 Green Destinations ปี 2026" />
+  <meta name="keywords" content="Green Destination, อุทัยธานี, GSTC, 84 ตัวชี้วัด, ท่องเที่ยวยั่งยืน, Top 100" />
+  <meta name="author" content="เทศบาลเมืองอุทัยธานี" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:title" content="84 ตัวชี้วัด | อุทัยธานี Green Destination" />
+  <meta property="og:description" content="ระบบติดตามผลการดำเนินงาน 84 ตัวชี้วัด Green Destination Standard เทศบาลเมืองอุทัยธานี" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="th_TH" />
+  <meta name="theme-color" content="#0A3D2A" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%230A3D2A'/%3E%3Cpath d='M24 8 C14 8 10 18 10 24 C10 32 16 38 24 40 C32 38 38 32 38 24 C38 18 34 8 24 8Z' fill='%230D6B3F'/%3E%3Cpath d='M24 10 C24 10 18 20 18 28 C18 34 21 38 24 40 C27 38 30 34 30 28 C30 20 24 10 24 10Z' fill='%2375daa8'/%3E%3Cline x1='24' y1='40' x2='24' y2='44' stroke='%236B3E26' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <!-- Preconnect for faster font loading -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link
-    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
     rel="stylesheet" />
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"GovernmentOrganization","name":"เทศบาลเมืองอุทัยธานี","description":"ระบบติดตามผลการดำเนินงาน 84 ตัวชี้วัด Green Destination Standard","url":"https://uthaithani.go.th","areaServed":{"@type":"City","name":"อุทัยธานี","containedInPlace":{"@type":"Country","name":"Thailand"}}}
+  </script>
   <script>
     tailwind.config = {
       darkMode: "class",
@@ -361,14 +377,112 @@
         display: block !important
       }
     }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 640px) {
+      .search-glass { display: none !important; }
+      #mainNav { padding-left: 0.75rem; padding-right: 0.75rem; }
+      .brand-leaf + div { display: none; }
+      .avatar-ring { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      /* Table horizontal scroll */
+      .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+      /* Hero stat chips: smaller on mobile */
+      .hero-stat-chip { padding: 8px 12px !important; }
+      /* Reduce heading size on mobile */
+      h1.text-4xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+      h1.text-5xl { font-size: 2rem !important; line-height: 2.4rem !important; }
+    }
+
+    /* Prevent filter pill overflow on catalog page */
+    .filter-scroll {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 0.375rem;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+
+    /* Better touch targets */
+    @media (hover: none) {
+      button, a[onclick] { min-height: 40px; }
+    }
+
+    /* === TYPOGRAPHY BASE === */
+    body {
+      font-size: 15px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    p, li { line-height: 1.75; }
+    .font-thai { line-height: 1.85; }
+    h1, h2, h3 { letter-spacing: -0.01em; }
+
+    /* === ACCESSIBILITY === */
+    :focus-visible {
+      outline: 2.5px solid #0D6B3F;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    button:focus:not(:focus-visible),
+    a:focus:not(:focus-visible) { outline: none; }
+
+    /* Skip navigation */
+    .skip-nav {
+      position: absolute;
+      top: -100%;
+      left: 1rem;
+      background: #0A3D2A;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 0 0 8px 8px;
+      font-weight: 700;
+      font-size: 13px;
+      z-index: 9999;
+      transition: top .15s;
+    }
+    .skip-nav:focus { top: 0; }
+
+    /* High-contrast status badges */
+    .badge-completed { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+    .badge-progress  { background:#fef3c7; color:#78350f; border:1px solid #fde68a; }
+    .badge-pending   { background:#f3f4f6; color:#374151; border:1px solid #d1d5db; }
+
+    /* Auditor feedback form */
+    .feedback-editor {
+      min-height: 120px;
+      font-family: 'Noto Sans Thai', sans-serif;
+      font-size: 14px;
+      line-height: 1.85;
+      resize: vertical;
+    }
+    .feedback-editor:focus {
+      box-shadow: 0 0 0 3px rgba(13,107,63,0.15);
+    }
+
+    /* Reduce motion for accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 
 <body class="bg-surface font-body text-on-surface flex min-h-screen">
+  <!-- Skip Navigation -->
+  <a href="#app" class="skip-nav">ข้ามไปยังเนื้อหาหลัก</a>
   <!-- Mobile Overlay -->
-  <div id="mobileOverlay" class="fixed inset-0 bg-black/40 z-40 hidden" onclick="toggleMobile()"></div>
+  <div id="mobileOverlay" class="fixed inset-0 bg-black/40 z-40 hidden" onclick="toggleMobile()" aria-hidden="true"></div>
   <!-- Sidebar -->
-  <aside id="sidebar"
+  <aside id="sidebar" role="complementary" aria-label="หมวดหมู่ตัวชี้วัด"
     class="fixed left-0 top-0 h-screen w-64 teak-texture p-4 z-50 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300 no-print">
     <div class="flex items-center space-x-3 px-2 py-4 mb-4">
       <div class="w-10 h-10 bg-velvet-gradient rounded-lg flex items-center justify-center text-white"><span
@@ -378,25 +492,25 @@
         <p class="text-[10px] text-on-surface-variant">Green Destination • 84 ตัวชี้วัด</p>
       </div>
     </div>
-    <nav id="sideNav" class="flex-1 space-y-1 overflow-y-auto"></nav>
+    <nav id="sideNav" aria-label="หมวดหมู่" class="flex-1 space-y-1 overflow-y-auto"></nav>
     <div class="pt-4 border-t border-outline-variant/15">
-      <button onclick="navigate('dashboard')"
+      <button onclick="navigate('dashboard')" aria-label="ไปยังแดชบอร์ด"
         class="w-full bg-velvet-gradient text-white py-3 rounded-xl font-bold text-sm hover:scale-[1.02] transition-transform">แดชบอร์ด</button>
     </div>
   </aside>
   <!-- Main Content -->
-  <main class="flex-1 md:ml-64 min-h-screen flex flex-col">
+  <main id="mainContent" class="flex-1 md:ml-64 min-h-screen flex flex-col">
     <!-- Top Bar -->
-    <header id="mainNav"
+    <header id="mainNav" role="banner"
       class="navbar-glass sticky top-0 z-30 flex justify-between items-center w-full px-4 md:px-8 py-2.5 no-print">
       <!-- Left: Brand + Nav -->
       <div class="flex items-center gap-3">
-        <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors" onclick="toggleMobile()">
-          <span class="material-symbols-outlined text-xl">menu</span>
+        <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors" onclick="toggleMobile()" aria-label="เปิดเมนู" aria-expanded="false" aria-controls="sidebar">
+          <span class="material-symbols-outlined text-xl" aria-hidden="true">menu</span>
         </button>
-        <div class="flex items-center gap-2.5 cursor-pointer group" onclick="navigate('dashboard')">
+        <div class="flex items-center gap-2.5 cursor-pointer group" onclick="navigate('dashboard')" role="button" aria-label="The Living Portfolio — ไปยังหน้าแรก" tabindex="0">
           <div class="brand-leaf group-hover:scale-110 transition-transform">
-            <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">eco</span>
+            <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1" aria-hidden="true">eco</span>
           </div>
           <div class="hidden sm:block">
             <div class="text-sm font-headline font-black text-primary leading-none tracking-tight">The Living Portfolio
@@ -405,18 +519,18 @@
             </div>
           </div>
         </div>
-        <div class="hidden lg:flex items-center gap-1 ml-4 bg-surface-container-low/60 rounded-full p-1">
+        <nav class="hidden lg:flex items-center gap-1 ml-4 bg-surface-container-low/60 rounded-full p-1" aria-label="เมนูหลัก">
           <a class="nav-pill font-headline cursor-pointer text-on-surface-variant" data-nav="dashboard"
-            onclick="navigate('dashboard')">
-            <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px">dashboard</span>
+            onclick="navigate('dashboard')" role="button" aria-current="page">
+            <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px" aria-hidden="true">dashboard</span>
             Dashboard
           </a>
           <a class="nav-pill font-headline cursor-pointer text-on-surface-variant" data-nav="catalog"
-            onclick="navigate('catalog')">
-            <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px">checklist</span>
+            onclick="navigate('catalog')" role="button">
+            <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px" aria-hidden="true">checklist</span>
             <span data-i18n="nav.indicators">ตัวชี้วัด 84 ข้อ</span>
           </a>
-        </div>
+        </nav>
       </div>
       <!-- Center: Drive status (compact) -->
       <div id="navDriveStatus"
@@ -426,29 +540,48 @@
       <div class="flex items-center gap-2">
         <div class="search-glass hidden sm:flex items-center px-3 py-1.5 gap-1.5">
           <span class="material-symbols-outlined text-on-surface-variant text-sm">search</span>
-          <input id="globalSearch"
+          <input id="globalSearch" role="searchbox" aria-label="ค้นหาตัวชี้วัด"
             class="bg-transparent border-none focus:ring-0 focus:outline-none text-sm placeholder:text-on-surface-variant/60 w-32 lg:w-40 font-thai"
             placeholder="ค้นหาตัวชี้วัด..." oninput="onGlobalSearch(this.value)" />
         </div>
-        <button id="refreshBtn" onclick="refreshDriveData()" title="Refresh Drive data"
+        <button id="refreshBtn" onclick="refreshDriveData()" title="Refresh Drive data" aria-label="ดึงข้อมูลใหม่จาก Drive"
           class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-emerald-forest hover:bg-emerald-50 transition-all">
-          <span class="material-symbols-outlined text-lg">refresh</span>
+          <span class="material-symbols-outlined text-lg" aria-hidden="true">refresh</span>
         </button>
-        <div id="langToggle"></div>
-        <div class="avatar-ring">
-          <div>UT</div>
+        <div id="langToggle" aria-label="เปลี่ยนภาษา"></div>
+        <div class="avatar-ring" role="img" aria-label="เทศบาลเมืองอุทัยธานี">
+          <div aria-hidden="true">UT</div>
         </div>
       </div>
     </header>
     <!-- SPA Content Shell -->
-    <div id="app" class="flex-1"></div>
+    <div id="app" class="flex-1" role="main" aria-live="polite" aria-atomic="false"></div>
     <!-- Footer -->
-    <footer class="mt-auto bg-surface border-t border-outline-variant/10 py-5 no-print">
-      <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto gap-2">
-        <p class="text-xs text-on-surface-variant">© 2569 (2026) อุทัยธานี Green Destination Portfolio — GSTC</p>
-        <span class="text-xs text-on-surface-variant">เทศบาลเมืองอุทัยธานี • Green Destinations Standard</span>
+    <footer class="mt-auto bg-surface border-t border-outline-variant/10 pt-5 pb-4 no-print">
+      <div class="max-w-7xl mx-auto px-4 md:px-8 space-y-3">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
+          <p class="text-xs text-on-surface-variant">&copy; 2569 (2026) อุทัยธานี Green Destination Portfolio — GSTC</p>
+          <span class="text-xs text-on-surface-variant select-none cursor-default" id="adminTrigger" title="">เทศบาลเมืองอุทัยธานี • Green Destinations Standard</span>
+        </div>
+        <div class="border-t border-outline-variant/10 pt-3 flex flex-col sm:flex-row items-center justify-between gap-1.5">
+          <p class="text-[10px] text-on-surface-variant/60 font-medium">
+            พัฒนาโดย <span class="text-emerald-forest font-bold">นักวิชาการคอมพิวเตอร์</span> • เทศบาลเมืองอุทัยธานี
+          </p>
+          <p class="text-[10px] italic font-medium" style="color:#C8952E">"ข้อมูลที่ดี คือรากฐานของป่าที่แข็งแรง"</p>
+        </div>
       </div>
     </footer>
+    <script>
+      (function() {
+        let clicks = 0, timer;
+        document.getElementById('adminTrigger').addEventListener('click', function() {
+          clicks++;
+          clearTimeout(timer);
+          timer = setTimeout(function() { clicks = 0; }, 600);
+          if (clicks >= 5) { clicks = 0; if (typeof promptAdmin === 'function') promptAdmin(); }
+        });
+      })();
+    </script>
   </main>
   <script src="data.js"></script>
   <script src="i18n.js"></script>

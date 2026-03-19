@@ -127,6 +127,57 @@ const T = {
   "content.status.en_version": { th: "English Version กำลังจัดทำเพิ่ม ยังไม่ครบทุกข้อ", en: "English Version being prepared, not yet complete for all items" },
   "content.status.auto_update": { th: "ระบบจะดึงข้อมูลใหม่อัตโนมัติเมื่อทีมงานอัปเดต Drive", en: "System will pull new data automatically when team updates Drive" },
   "content.status.last_refresh": { th: "อัปเดตล่าสุด", en: "Last refresh" },
+
+  // === STATUS GUIDE / CRITERIA ===
+  "status.guide.title": { th: "เกณฑ์การกำหนดสถานะตัวชี้วัด", en: "Indicator Status Criteria" },
+  "status.guide.subtitle": { th: "สถานะถูกกำหนดจากหลักฐาน GSTC 3 ระดับ", en: "Status is determined by GSTC evidence across 3 levels" },
+  "status.guide.c.title": { th: "ดำเนินการแล้ว (Completed)", en: "Completed" },
+  "status.guide.c.desc": { th: "หลักฐานครบถ้วน อัปโหลดลง Google Drive แล้ว เอกสารผ่านการตรวจสอบ และสอดคล้องกับเกณฑ์ GSTC/Green Destinations อย่างสมบูรณ์", en: "Evidence complete, uploaded to Google Drive, documents verified, and fully compliant with GSTC/Green Destinations criteria." },
+  "status.guide.c.needs": { th: "ต้องการ: ไฟล์หลักฐาน + บริบทท้องถิ่น + หน่วยงานรับรอง", en: "Requires: Evidence files + Local context + Agency confirmation" },
+  "status.guide.p.title": { th: "กำลังดำเนินการ (In Progress)", en: "In Progress" },
+  "status.guide.p.desc": { th: "เริ่มดำเนินการแล้ว มีไฟล์หลักฐานบางส่วนใน Drive แต่ยังไม่ครบ หรือรอการยืนยันจากหน่วยงานที่รับผิดชอบ", en: "Work has started, some evidence files exist in Drive but not complete, or awaiting confirmation from responsible agencies." },
+  "status.guide.p.needs": { th: "รอ: หลักฐานเพิ่มเติม / การยืนยันจากหน่วยงาน / เอกสารทางการ", en: "Waiting for: Additional evidence / Agency confirmation / Official documents" },
+  "status.guide.w.title": { th: "รอดำเนินการ (Pending)", en: "Pending" },
+  "status.guide.w.desc": { th: "ยังไม่เริ่มดำเนินการ ไม่มีไฟล์หลักฐานใน Drive โฟลเดอร์ว่างเปล่า หรือยังไม่มีการมอบหมายงาน", en: "Not yet started, no evidence files in Drive, folder is empty, or task has not been assigned." },
+  "status.guide.w.needs": { th: "ต้องการ: มอบหมายหน่วยงาน + เริ่มรวบรวมหลักฐาน + อัปโหลดเข้า Drive", en: "Requires: Agency assignment + Begin evidence collection + Upload to Drive" },
+  "status.guide.criteria.title": { th: "เกณฑ์การเปลี่ยนสถานะ", en: "Status Transition Criteria" },
+  "status.guide.w2p": { th: "รอ → กำลังทำ: มีไฟล์อย่างน้อย 1 ไฟล์ใน Drive + หน่วยงานได้รับมอบหมายแล้ว", en: "Pending → In Progress: At least 1 file in Drive + Agency assigned" },
+  "status.guide.p2c": { th: "กำลังทำ → สำเร็จ: หลักฐานครบ + หน่วยงานยืนยัน + ผ่านการตรวจ GSTC", en: "In Progress → Completed: Evidence complete + Agency confirmed + GSTC verified" },
+
+  // === VIEW SWITCHER ===
+  "view.grid": { th: "กริด", en: "Grid" },
+  "view.list": { th: "รายการ", en: "List" },
+  "view.table": { th: "ตาราง", en: "Table" },
+  "view.switch": { th: "เปลี่ยนมุมมอง", en: "Switch View" },
+
+  // === ADMIN PANEL ===
+  "admin.title": { th: "Admin Panel", en: "Admin Panel" },
+  "admin.subtitle": { th: "เข้าถึงได้เฉพาะผู้ดูแลระบบ", en: "Restricted to system administrators" },
+  "admin.back": { th: "กลับ Dashboard", en: "Back to Dashboard" },
+  "admin.lock": { th: "ล็อก Admin", en: "Lock Admin" },
+  "admin.drive.title": { th: "สถานะ Google Drive", en: "Google Drive Status" },
+  "admin.drive.folders": { th: "หมวดใน Drive", en: "Categories in Drive" },
+  "admin.drive.scanned": { th: "ตัวชี้วัดที่ Scan แล้ว", en: "Indicators Scanned" },
+  "admin.drive.completed": { th: "สำเร็จแล้ว", en: "Completed" },
+  "admin.drive.pending": { th: "รอดำเนินการ", en: "Pending" },
+  "admin.drive.rescan": { th: "สแกน Drive ใหม่", en: "Re-scan Drive" },
+  "admin.folder.title": { th: "แผนผังโฟลเดอร์ Drive", en: "Drive Folder Map" },
+  "admin.folder.empty": { th: "ยังไม่มีข้อมูลโฟลเดอร์ — กด \"สแกน Drive ใหม่\"", en: "No folder data — click \"Re-scan Drive\"" },
+
+  // === SUBMIT MODAL ===
+  "submit.title": { th: "ส่งผลงาน", en: "Submit Portfolio" },
+  "submit.subtitle": { th: "อุทัยธานี — Green Destination Top 100", en: "Uthai Thani — Green Destination Top 100" },
+  "submit.ready": { th: "พร้อมส่งแล้ว!", en: "Ready to submit!" },
+  "submit.not_ready": { th: "ยังมีตัวชี้วัดที่ยังค้างอยู่", en: "Some indicators still pending" },
+  "submit.info": { th: "ระบบจะส่งหลักฐานทั้งหมดจาก Google Drive ไปยังคณะกรรมการ Green Destinations", en: "System will send all evidence from Google Drive to the Green Destinations committee" },
+  "submit.deadline": { th: "กำหนดส่งผลงาน", en: "Submission deadline" },
+  "submit.cancel": { th: "ยกเลิก", en: "Cancel" },
+  "submit.confirm": { th: "ยืนยันส่งผลงาน", en: "Confirm Submission" },
+  "submit.toast": { th: "✅ บันทึกการส่งแล้ว — ติดต่อผู้ประสานงานของท่าน", en: "✅ Submission recorded — contact your coordinator" },
+
+  // === FOOTER DEV CREDIT ===
+  "footer.dev": { th: "พัฒนาโดย นักวิชาการคอมพิวเตอร์ • เทศบาลเมืองอุทัยธานี", en: "Developed by IT Officer • Uthai Thani Municipality" },
+  "footer.slogan": { th: "\"ข้อมูลที่ดี คือรากฐานของป่าที่แข็งแรง\"", en: "\"Good data is the root of a resilient forest\"" },
 };
 
 // === CATEGORY NAMES (bilingual) ===
@@ -167,10 +218,15 @@ function getLang() { return currentLang; }
 
 function updateStaticI18n() {
   // Footer
-  const f1 = document.querySelector("footer p");
-  const f2 = document.querySelector("footer span");
-  if (f1) f1.textContent = t("app.footer.copy");
+  const footerPs = document.querySelectorAll("footer p");
+  const f2 = document.querySelector("footer span#adminTrigger");
+  if (footerPs[0]) footerPs[0].textContent = t("app.footer.copy");
   if (f2) f2.textContent = t("app.footer.org");
+  if (footerPs[1]) {
+    footerPs[1].innerHTML = t("footer.dev").replace("นักวิชาการคอมพิวเตอร์", `<span class="text-emerald-forest font-bold">นักวิชาการคอมพิวเตอร์</span>`).replace("IT Officer", `<span class="text-emerald-forest font-bold">IT Officer</span>`);
+  }
+  const sloganEl = document.querySelector("footer p.italic");
+  if (sloganEl) sloganEl.textContent = t("footer.slogan");
   // Global search
   const gs = document.getElementById("globalSearch");
   if (gs) gs.placeholder = t("search.placeholder");
