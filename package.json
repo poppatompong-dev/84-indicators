@@ -4,8 +4,7 @@
   "description": "The Living Portfolio for Uthai Thani 84 Indicators",
   "scripts": {
     "start": "serve .",
-    "dev": "serve .",
-    "build": "echo 'Static Site - No Build Required'"
+    "dev": "serve ."
   },
   "devDependencies": {
     "serve": "^14.2.0"
