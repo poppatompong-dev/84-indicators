@@ -1,0 +1,16 @@
+{
+  "name": "uthai-thani-green-destination",
+  "version": "1.0.0",
+  "description": "The Living Portfolio for Uthai Thani 84 Indicators",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve .",
+    "build": "echo 'Static Site - No Build Required'"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

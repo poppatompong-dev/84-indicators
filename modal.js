@@ -38,9 +38,15 @@ function renderModal() {
   const info = driveFileInfo(f.mimeType);
   const isImage = f.mimeType?.startsWith("image/");
   const isPDF = f.mimeType === "application/pdf";
-  const isDoc = f.mimeType === "application/vnd.google-apps.document";
-  const isSheet = f.mimeType === "application/vnd.google-apps.spreadsheet";
-  const isSlides = f.mimeType === "application/vnd.google-apps.presentation";
+  const isDoc = f.mimeType === "application/vnd.google-apps.document" || 
+                f.mimeType === "application/msword" || 
+                f.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const isSheet = f.mimeType === "application/vnd.google-apps.spreadsheet" || 
+                  f.mimeType === "application/vnd.ms-excel" || 
+                  f.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const isSlides = f.mimeType === "application/vnd.google-apps.presentation" || 
+                   f.mimeType === "application/vnd.ms-powerpoint" || 
+                   f.mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation";
   const isVideo = f.mimeType?.startsWith("video/");
   const isGoogleNative = isDoc || isSheet || isSlides;
   const driveLink = f.webViewLink || "#";
@@ -50,37 +56,57 @@ function renderModal() {
 
   // Build preview content
   let preview = "";
-  if (isImage) {
-    // Use Drive thumbnail at high res, or webContentLink
-    const imgUrl = f.thumbnailLink
-      ? f.thumbnailLink.replace(/=s\d+/, "=s1200")
-      : `https://drive.google.com/uc?id=${f.id}&export=view`;
-    preview = `<img src="${imgUrl}" class="max-w-full max-h-[75vh] object-contain rounded-xl" alt="${f.name}" onerror="this.src='https://drive.google.com/uc?id=${f.id}&export=view'"/>`;
-  } else if (isPDF || isGoogleNative) {
-    // Embed Google Drive viewer
-    const embedUrl = isGoogleNative
-      ? `https://docs.google.com/gview?url=https://docs.google.com/document/d/${f.id}/export?format=pdf&embedded=true`
-      : `https://drive.google.com/file/d/${f.id}/preview`;
-    const viewerUrl = isDoc
-      ? `https://docs.google.com/document/d/${f.id}/preview`
-      : isSheet
-      ? `https://docs.google.com/spreadsheets/d/${f.id}/preview`
-      : isSlides
-      ? `https://docs.google.com/presentation/d/${f.id}/preview`
-      : `https://drive.google.com/file/d/${f.id}/preview`;
-    preview = `<iframe src="${viewerUrl}" class="w-full h-[75vh] rounded-xl border-0" allowfullscreen></iframe>`;
-  } else if (isVideo) {
-    preview = `<iframe src="https://drive.google.com/file/d/${f.id}/preview" class="w-full h-[75vh] rounded-xl border-0" allowfullscreen></iframe>`;
-  } else {
-    // Fallback: show file info with link
-    preview = `<div class="flex flex-col items-center justify-center py-16 gap-4">
+  
+  const fallbackUI = `<div class="flex flex-col items-center justify-center py-16 gap-4 text-center">
       <span class="material-symbols-outlined text-6xl" style="color:${info.color}">${info.icon}</span>
-      <p class="text-lg font-bold text-on-surface">${f.name}</p>
-      <p class="text-sm text-on-surface-variant">${info.label}${f.size ? " • " + formatFileSize(f.size) : ""}</p>
-      <a href="${driveLink}" target="_blank" rel="noopener" class="bg-velvet text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform text-sm">
-        <span class="material-symbols-outlined text-lg">open_in_new</span>${t("modal.open_drive")}
+      <p class="text-lg font-bold text-on-surface px-4">${f.name}</p>
+      <p class="text-sm text-on-surface-variant">${info.label}${f.size ? " \u00b7 " + formatFileSize(f.size) : ""}</p>
+      <a href="${driveLink}" target="_blank" rel="noopener" class="bg-velvet text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform text-sm mt-2">
+        <span class="material-symbols-outlined text-lg">open_in_new</span>${typeof t === 'function' ? t("modal.open_drive") : "Open in Drive"}
       </a>
     </div>`;
+
+  if (f.thumbnailLink || isImage) {
+    const imgUrl = f.thumbnailLink ? f.thumbnailLink.replace(/=s\d+/, "=s1200") : `https://drive.google.com/uc?id=${f.id}&export=view`;
+    preview = `
+      <img src="${imgUrl}" class="max-w-full max-h-[75vh] object-contain rounded-xl shadow-lg" alt="${f.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+      <div class="hidden flex-col items-center justify-center py-16 gap-4 text-center fallback-layer">
+        <span class="material-symbols-outlined text-6xl" style="color:${info.color}">${info.icon}</span>
+        <p class="text-lg font-bold text-on-surface px-4">${f.name}</p>
+        <p class="text-sm text-on-surface-variant">${info.label}${f.size ? " \u00b7 " + formatFileSize(f.size) : ""}</p>
+        <a href="${driveLink}" target="_blank" rel="noopener" class="bg-velvet text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform text-sm mt-2">
+          <span class="material-symbols-outlined text-lg">open_in_new</span>${typeof t === 'function' ? t("modal.open_drive") : "Open in Drive"}
+        </a>
+      </div>
+    `;
+  } else if (isGoogleNative || isPDF) {
+    // Unsupported Thumbnail (e.g., MS Office) -> Use Hybrid Preview Iframe
+    const drivePreview = `https://drive.google.com/file/d/${f.id}/preview`;
+    preview = `
+      <div class="relative w-full max-w-4xl h-[75vh] md:h-[85vh] mx-auto bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col">
+        
+        <!-- Document Skeleton Placeholder -->
+        <div id="skeleton-${f.id}" class="absolute inset-0 flex flex-col items-center justify-center p-8 bg-surface z-0">
+          <span class="material-symbols-outlined text-7xl animate-pulse" style="color:${info.color}">${info.icon}</span>
+          <p class="text-sm font-bold text-on-surface mt-6 max-w-[80%] truncate text-center">${f.name}</p>
+          <div class="flex items-center gap-2 mt-4 text-xs text-on-surface-variant/70 font-medium">
+             <span class="material-symbols-outlined drive-spinner text-sm">sync</span>
+             Loading structural preview...
+          </div>
+          
+          <!-- Escape Hatch -->
+          <a href="${driveLink}" target="_blank" rel="noopener" class="mt-8 bg-surface-container text-on-surface px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-surface-container-high transition-transform hover:scale-105 text-sm shadow-sm border border-outline-variant/10">
+            <span class="material-symbols-outlined text-lg">open_in_new</span>${typeof t === 'function' ? t("modal.open_drive") : "Open in Google Drive"}
+          </a>
+        </div>
+        
+        <!-- Interactive Native Drive iframe -->
+        <iframe src="${drivePreview}" class="relative z-10 w-full h-full border-0 opacity-0 transition-opacity duration-1000 bg-white" allow="autoplay" onload="this.style.opacity='1'; setTimeout(() => { const skel = document.getElementById('skeleton-${f.id}'); if(skel) skel.style.display='none'; }, 500);"></iframe>
+      </div>
+    `;
+  } else {
+    // Unsupported or no thumbnail available
+    preview = fallbackUI;
   }
 
   el.className = "fixed inset-0 z-[100] flex items-center justify-center";

@@ -178,6 +178,77 @@ const T = {
   // === FOOTER DEV CREDIT ===
   "footer.dev": { th: "พัฒนาโดย นักวิชาการคอมพิวเตอร์ • เทศบาลเมืองอุทัยธานี", en: "Developed by IT Officer • Uthai Thani Municipality" },
   "footer.slogan": { th: "\"ข้อมูลที่ดี คือรากฐานของป่าที่แข็งแรง\"", en: "\"Good data is the root of a resilient forest\"" },
+
+  // === STATIC METADATA (100% EN) ===
+  "ข้อตกลงและการจัดองค์กร": { en: "Agreements & Organization" },
+  "การวางแผนและการพัฒนา": { en: "Planning & Development" },
+  "การจัดการนักท่องเที่ยว": { en: "Visitor Management" },
+  "การติดตามตรวจสอบและการรายงาน": { en: "Monitoring & Reporting" },
+  "การปฏิบัติตามกฎหมายและจริยธรรม": { en: "Legal & Ethical Compliance" },
+  "ธรรมชาติและการอนุรักษ์": { en: "Nature & Conservation" },
+  "ประสบการณ์ด้านสัตว์และธรรมชาติ": { en: "Animal & Nature Experience" },
+  "การใช้ที่ดินและมลพิษ": { en: "Land Use & Pollution" },
+  "การจัดการน้ำ": { en: "Water Management" },
+  "ขยะและการรีไซเคิล": { en: "Waste & Recycling" },
+  "พลังงานและการเปลี่ยนแปลงสภาพภูมิอากาศ": { en: "Energy & Climate Change" },
+  "การปรับตัวกับการเปลี่ยนแปลงสภาพภูมิอากาศ": { en: "Climate Change Adaptation" },
+  "มรดกทางวัฒนธรรม": { en: "Cultural Heritage" },
+  "ผู้คนและประเพณี": { en: "People & Traditions" },
+  "การเคารพในความเป็นมนุษย์": { en: "Respect for Human Rights" },
+  "การมีส่วนร่วมของชุมชน": { en: "Community Involvement" },
+  "เศรษฐกิจชุมชน": { en: "Community Economy" },
+  "ผลกระทบทางสังคม-เศรษฐกิจ": { en: "Socio-Economic Impacts" },
+  "สุขภาพและความปลอดภัย": { en: "Health & Safety" },
+  "การมีส่วนร่วมของภาคธุรกิจ": { en: "Business Sector Involvement" },
+  "การจ้างงานและมาตรฐานธุรกิจ": { en: "Employment & Business Standards" },
+  "การให้ข้อมูลและการทำการตลาด": { en: "Information & Marketing" },
+  "เทศบาลเมืองอุทัยธานี": { en: "Uthai Thani Municipality" },
+  "สำนักงานจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Office" },
+  "สำนักงานวัฒนธรรมจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Cultural Office" },
+  "ททท.สำนักงานอุทัยธานี": { en: "TAT Uthai Thani Office" },
+  "สำนักงานสถิติจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Statistical Office" },
+  "สำนักงานท่องเที่ยวและกีฬาจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Tourism and Sports Office" },
+  "สำนักงานทรัพยากรธรรมชาติฯ": { en: "Office of Natural Resources and Environment" },
+  "สำนักงานการท่องเที่ยวและกีฬาฯ": { en: "Office of Tourism and Sports" },
+  "สำนักงานประชาสัมพันธ์จังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Public Relations Office" },
+  "โครงการชลประทานอุทัยธานี": { en: "Uthai Thani Irrigation Project" },
+  "สำนักงานป้องกันฯ": { en: "Office of Disaster Prevention and Mitigation" },
+  "สนง.โยธาธิการและผังเมือง": { en: "Office of Public Works and Town & Country Planning" },
+  "สำนักงานประมงจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Fisheries Office" },
+  "โครงการชลประทาน": { en: "Irrigation Project" },
+  "สำนักงานประมงฯ": { en: "Fisheries Office" },
+  "สำนักงานปศุสัตว์จังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Livestock Office" },
+  "สำนักงานส่งเสริมการปกครองท้องถิ่นฯ": { en: "Office of Local Administration" },
+  "อำเภอเมืองอุทัยธานี": { en: "Mueang Uthai Thani District" },
+  "สนง.โยธาธิการฯ": { en: "Office of Public Works" },
+  "สำนักงานเกษตรและสหกรณ์ฯ": { en: "Office of Agriculture and Cooperatives" },
+  "ผู้ประกอบการ/สมาคมธุรกิจท่องเที่ยว": { en: "Entrepreneurs / Tourism Business Assoc." },
+  "สำนักงานสิ่งแวดล้อมฯ ที่ 4": { en: "Regional Environment Office 4" },
+  "องค์การบำบัดน้ำเสีย": { en: "Wastewater Management Authority" },
+  "สำนักงานท่องเที่ยวฯ": { en: "Tourism Office" },
+  "สำนักงานขนส่งจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Transport Office" },
+  "สำนักงานพลังงานจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Energy Office" },
+  "สำนักงานพระพุทธศาสนาฯ": { en: "Office of Buddhism" },
+  "สำนักศิลปากรที่ 4 ลพบุรี": { en: "Fine Arts Department Region 4 Lopburi" },
+  "สำนักศิลปากรที่ 4": { en: "Fine Arts Department Region 4" },
+  "สำนักงานพัฒนาสังคมฯ": { en: "Office of Social Development & Human Security" },
+  "สำนักงานโยธาธิการฯ": { en: "Office of Public Works" },
+  "สำนักงานพาณิชย์ฯ": { en: "Provincial Commercial Office" },
+  "ที่ทำการปกครองจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Admin Office" },
+  "ผู้ประกอบการ/หอการค้าจังหวัดอุทัยธานี": { en: "Entrepreneurs / Chamber of Commerce" },
+  "สำนักงานเกษตรฯ": { en: "Provincial Agriculture Office" },
+  "สำนักงานการท่องเที่ยวฯ": { en: "Provincial Tourism Office" },
+  "สำนักงานสาธารณสุขฯ": { en: "Provincial Public Health Office" },
+  "สถานีตำรวจภูธรเมืองอุทัยธานี": { en: "Mueang Uthai Thani Police Station" },
+  "ที่ทำการปกครองฯ": { en: "Administrative Office" },
+  "สำนักงานสิ่งแวดล้อมฯ": { en: "Regional Environment Office" },
+  "สำนักงานประชาสัมพันธ์ฯ": { en: "Provincial Public Relations Office" },
+  "การประปาส่วนภูมิภาคฯ": { en: "Provincial Waterworks Authority" },
+  "ผู้ประกอบการ": { en: "Entrepreneurs" },
+  "สำนักงานพลังงานฯ": { en: "Provincial Energy Office" },
+  "สำนักงานขนส่งฯ": { en: "Provincial Transport Office" },
+  "สำนักงานแรงงานจังหวัดอุทัยธานี": { en: "Uthai Thani Provincial Labour Office" },
+  "สำนักงานวัฒนธรรมฯ": { en: "Provincial Cultural Office" }
 };
 
 // === CATEGORY NAMES (bilingual) ===
@@ -190,9 +261,8 @@ const CAT_NAMES = {
   6: { th: "การประกอบธุรกิจและการบริการ", en: "Business & Services" },
 };
 
-// === INDICATOR ENGLISH TITLES (mapped from CATS[].en and data) ===
-// Will be populated from data.js CATS array
-const INDICATOR_EN = {};
+// === INDICATOR ENGLISH TITLES ===
+// Now dynamically loaded via drive.js EN Sync Engine
 
 function t(key) {
   const entry = T[key];
@@ -204,6 +274,12 @@ function setLang(lang) {
   currentLang = lang;
   localStorage.setItem("lang", lang);
   document.documentElement.lang = lang;
+  
+  // Trigger drive sync for EN dynamically
+  if (lang === 'en' && typeof syncEnglishMetadata === 'function') {
+    syncEnglishMetadata();
+  }
+  
   // Re-render entire UI
   if (typeof render === "function") render();
   // Update static elements

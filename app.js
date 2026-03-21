@@ -27,12 +27,67 @@ function stLabel(key) { const s = STATUS_RAW[key]; return s ? s[getLang()] || s.
 const STATUS_MAP = new Proxy(STATUS_RAW, { get(target, prop) { const s = target[prop]; if (!s) return undefined; return { ...s, label: s[getLang()] || s.th }; } });
 function getIndicators() {
   const overrides = getStatusOverrides();
+  const L = typeof getLang === 'function' ? getLang() : 'th';
+  
   return D.map(d => {
     const id = d[0];
     const ov = overrides[id];
-    return { id, cat: d[1], sub: d[2], title: d[3], desc: d[4], agencies: d[5].split("|"), status: ov ? ov.status : d[6], statusOverridden: !!ov };
+    let sub = L === 'en' ? t(d[2]) : d[2];
+    let title = d[3];
+    let desc = d[4];
+    let agencies = d[5].split("|");
+    
+    if (L === 'en') {
+      agencies = agencies.map(a => t(a));
+      
+      // If we have downloaded EN data from Drive (to be implemented), use it
+      if (typeof INDICATOR_EN !== 'undefined' && INDICATOR_EN[id]) {
+         title = INDICATOR_EN[id].title || title;
+         desc = INDICATOR_EN[id].desc || desc;
+      } else {
+         // Fallback placeholders when Google Drive sync has no EN content yet
+         title = "Content Pending (English Version)";
+         desc = "The Uthai Thani Municipality team is actively preparing and translating evidence for this indicator into the Google Drive 'English Version' workspace. This content will sync automatically once available.";
+      }
+    }
+    
+    let status = ov ? ov.status : d[6];
+    let validationMatch = 'ok';
+    let filesCount = null;
+    let files = [];
+    
+    // Auto-Downgrade Engine & Validation Logic
+    if (L === 'en' && typeof INDICATOR_EN !== 'undefined' && INDICATOR_EN[id]) {
+       filesCount = INDICATOR_EN[id].filesCount !== undefined ? INDICATOR_EN[id].filesCount : 0;
+       files = INDICATOR_EN[id].files || [];
+    } else if (L !== 'en' && typeof INDICATOR_TH !== 'undefined' && INDICATOR_TH[id]) {
+       filesCount = INDICATOR_TH[id].filesCount !== undefined ? INDICATOR_TH[id].filesCount : 0;
+       files = INDICATOR_TH[id].files || [];
+    }
+    
+    if (filesCount !== null && filesCount !== undefined) {
+        if (filesCount === 0) {
+            if (status === 'c' || status === 'p') validationMatch = 'mismatch'; // 0 files but explicitly marked active/complete
+            status = 'w'; // FORCE downgrade to Missing
+        } else if (filesCount > 0) {
+            if (status === 'w') {
+                validationMatch = 'review'; // Files exist but marked missing (default state).
+                status = 'p'; // Auto-upgrade to In Progress
+            }
+        }
+    }
+
+    return { 
+       id, cat: d[1], sub, title, desc, agencies, 
+       status, 
+       statusOverridden: !!ov,
+       validationMatch,
+       filesCount,
+       files
+    };
   });
 }
+
 function getCatStats() {
   const items = getIndicators();
   return CATS.map(c => {
@@ -145,6 +200,8 @@ function onHashChange() {
     currentView = "catalog";
   } else if (h === "admin") {
     currentView = adminUnlocked ? "admin" : "dashboard";
+  } else if (h === "audit") {
+    currentView = "audit";
   } else {
     currentView = "dashboard";
   }
@@ -179,6 +236,7 @@ function render() {
   else if (currentView === "catalog") app.innerHTML = renderCatalog();
   else if (currentView === "detail") app.innerHTML = renderDetail();
   else if (currentView === "admin" && adminUnlocked) app.innerHTML = renderAdmin();
+  else if (currentView === "audit") app.innerHTML = renderAudit();
   const vEl = app.querySelector("[data-view]");
   if (vEl) { vEl.classList.add("active", "fade-in"); }
   // Restore search focus in catalog
@@ -448,6 +506,89 @@ function renderDashboard() {
           </div>
         </div>
       </section>
+    </div>
+  </div>`;
+}
+
+// === AUDIT VIEWER ===
+function renderAudit() {
+  const L = getLang();
+  const items = getIndicators();
+  
+  const mismatchItems = items.filter(i => i.validationMatch === 'mismatch');
+  const reviewItems = items.filter(i => i.validationMatch === 'review');
+  const missingItems = items.filter(i => i.filesCount === 0);
+  const okItems = items.filter(i => i.validationMatch === 'ok' && i.filesCount > 0);
+  
+  return `<div data-view="audit" class="px-4 md:px-8 py-6 max-w-7xl w-full mx-auto space-y-6">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#B91C1C,#7F1D1D)">
+          <span class="material-symbols-outlined text-white">fact_check</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-headline font-extrabold text-on-surface">${L === 'en' ? 'Data Mapping Verification' : 'ระบบตรวจสอบความถูกต้องของข้อมูล'}</h1>
+          <p class="text-xs text-on-surface-variant shadow-none">${L === 'en' ? 'Verify Google Drive mapping and strictly enforce Zero False-Positives.' : 'ตรวจสอบโครงสร้างและป้องกันการแสดงสถานะเป็นเท็จ'}</p>
+        </div>
+      </div>
+      <button onclick="navigate('dashboard')" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-white px-3 py-2 rounded-xl border border-outline-variant/20 hover:bg-surface-container-low transition-colors">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>${t("detail.breadcrumb.home")}
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="bg-red-50 p-4 rounded-xl text-center border border-red-200 cursor-pointer hover:bg-red-100" onclick="alert('${L === 'en' ? 'Mismatch: Admin explicitly forced status to Complete/Progress, but 0 evidence files were found in Google Drive. Status Auto-Downgraded.' : 'สถานะขัดแย้ง: ข้อมูลถูกปรับปรุงด้วยผู้ดูแลระบบให้สมบูรณ์ แต่ไม่มีไฟล์หลักฐานใน Drive ระบบจึงปรับลดสถานะอัตโนมัติ'}')">
+        <p class="text-3xl font-black text-error">${mismatchItems.length}</p>
+        <p class="text-[10px] font-bold text-red-700 mt-1">${L === 'en' ? 'Critical Mismatch' : 'สถานะขัดแย้ง (วิกฤต)'} <span class="material-symbols-outlined text-[10px]">info</span></p>
+      </div>
+      <div class="bg-amber-50 p-4 rounded-xl text-center border border-amber-200">
+        <p class="text-3xl font-black text-amber-600">${reviewItems.length + missingItems.length}</p>
+        <p class="text-[10px] font-bold text-amber-700 mt-1">${L === 'en' ? 'Pending Evidence' : 'รอหลักฐาน / รอประเมิน'}</p>
+      </div>
+      <div class="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-200">
+        <p class="text-3xl font-black text-emerald-600">${okItems.length}</p>
+        <p class="text-[10px] font-bold text-emerald-700 mt-1">${L === 'en' ? 'Verified Intact' : 'ตรวจสอบแล้ว'}</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl overflow-hidden shadow-sm mt-6">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-outline-variant/10 bg-surface-container-low/50">
+              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant w-12">#</th>
+              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant min-w-[200px]">${L === 'en' ? 'Indicator' : 'ตัวชี้วัด'}</th>
+              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-20">${L === 'en' ? 'Files' : 'ไฟล์'}</th>
+              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden md:table-cell">${L === 'en' ? 'Evidence Sample' : 'ตัวอย่างหลักฐาน'}</th>
+              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-24">${L === 'en' ? 'Actual Status' : 'สถานะจริง'}</th>
+              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-28">${L === 'en' ? 'Validation' : 'ผลตรวจสอบ'}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/5">
+            ${items.map(i => {
+               const st = STATUS_MAP[i.status];
+               let valBadge = '';
+               if (i.validationMatch === 'mismatch') valBadge = `<span class="bg-red-100 text-error px-2 py-0.5 rounded text-[10px] font-bold">Mismatch 🔴</span>`;
+               else if (i.filesCount === 0) valBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold">Missing</span>`;
+               else if (i.validationMatch === 'review') valBadge = `<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">Review</span>`;
+               else valBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">Verified 🟢</span>`;
+               
+               const fileListStr = (i.files && i.files.length > 0) ? i.files.slice(0, 2).map(f => `<a href="${f.link}" target="_blank" class="text-river-blue hover:underline text-[10px] inline-block truncate max-w-[120px] align-bottom" title="${f.name}">${f.name}</a>`).join('<br>') + (i.files.length > 2 ? '<br><span class="text-on-surface-variant/70 text-[9px]">...more</span>' : '') : '<span class="text-on-surface-variant/50 text-[10px]">No files mapped</span>';
+
+               return `<tr class="hover:bg-surface-container-low/40 transition-colors ${i.validationMatch === 'mismatch' ? 'bg-red-50/30' : ''}">
+                 <td class="py-3 px-4 font-bold text-xs">${i.id}</td>
+                 <td class="py-3 px-4 cursor-pointer" onclick="navigate('detail',{id:${i.id}})">
+                   <p class="font-medium text-xs text-on-surface">${i.title}</p>
+                 </td>
+                 <td class="py-3 px-4 text-center text-xs font-bold ${i.filesCount > 0 ? 'text-river-blue' : 'text-error'}">${i.filesCount !== null ? i.filesCount : '?'}</td>
+                 <td class="py-3 px-4 hidden md:table-cell text-[10px]">${fileListStr}</td>
+                 <td class="py-3 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span></td>
+                 <td class="py-3 px-4 text-center">${valBadge}</td>
+               </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>`;
 }
@@ -738,7 +879,12 @@ function viewSwitcherHTML() {
 
 // === CATALOG ITEM RENDERERS ===
 function renderCatalogItemGrid(i, cat, st, L) {
-  return `<div class="bg-white p-5 rounded-2xl hover:translate-y-[-2px] transition-all cursor-pointer group shadow-sm" onclick="navigate('detail',{id:${i.id}})">
+  const isMismatch = i.validationMatch === 'mismatch';
+  const borderClass = isMismatch ? "border-2 border-error/50" : "border border-transparent";
+  const warningBadge = isMismatch ? `<span class="absolute -top-2 -right-2 bg-error text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md animate-pulse" title="Mismatch: Admin marked Complete/Progress but 0 files"><span class="material-symbols-outlined text-[14px]">error</span></span>` : "";
+
+  return `<div class="bg-white p-5 rounded-2xl hover:translate-y-[-2px] transition-all cursor-pointer group shadow-sm ${borderClass} relative" onclick="navigate('detail',{id:${i.id}})">
+    ${warningBadge}
     <div class="flex items-start justify-between mb-3">
       <div class="flex items-center space-x-2">
         <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:${cat.cl}">${i.id}</span>
@@ -749,7 +895,7 @@ function renderCatalogItemGrid(i, cat, st, L) {
     <h3 class="font-headline font-bold text-sm text-on-surface mb-2 group-hover:text-emerald-forest transition-colors leading-snug">${i.title}</h3>
     <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">${i.desc}</p>
     <div class="flex flex-wrap gap-1 mt-3 items-center">
-      ${driveStatusMap[i.id]?.fileCount ? `<span class="text-[9px] bg-blue-50 text-river-blue px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:10px">folder</span>${driveStatusMap[i.id].fileCount} ${t("cat.files")}</span>` : ""}
+      ${i.filesCount !== null ? `<span class="text-[9px] ${i.filesCount > 0 ? "bg-blue-50 text-river-blue" : "bg-red-50 text-error border border-red-200"} px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:10px">folder</span>${i.filesCount} ${t("cat.files")}</span>` : ""}
       ${i.agencies.slice(0, 2).map(a => `<span class="text-[9px] bg-surface-container-low px-2 py-0.5 rounded-full text-on-surface-variant">${a.length > 20 ? a.substring(0, 18) + "…" : a}</span>`).join("")}
       ${i.agencies.length > 2 ? `<span class="text-[9px] bg-surface-container-low px-2 py-0.5 rounded-full text-on-surface-variant">+${i.agencies.length - 2}</span>` : ""}
     </div>
@@ -757,18 +903,20 @@ function renderCatalogItemGrid(i, cat, st, L) {
 }
 
 function renderCatalogItemList(i, cat, st, L) {
-  const fileCount = driveStatusMap[i.id]?.fileCount || 0;
-  return `<div class="bg-white px-4 py-3.5 rounded-xl flex items-center gap-3 hover:shadow-sm transition-all cursor-pointer group" onclick="navigate('detail',{id:${i.id}})">
+  const isMismatch = i.validationMatch === 'mismatch';
+  const borderClass = isMismatch ? "border-l-4 border-error" : "border-l-4 border-transparent";
+  return `<div class="bg-white px-4 py-3.5 rounded-xl flex items-center gap-3 hover:shadow-sm transition-all cursor-pointer group ${borderClass}" onclick="navigate('detail',{id:${i.id}})">
     <span class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:${cat.cl}">${i.id}</span>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 flex-wrap">
         <h3 class="font-bold text-sm text-on-surface group-hover:text-emerald-forest transition-colors leading-snug">${i.title}</h3>
         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span>
+        ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error">error</span><span class="text-[10px] text-error font-bold">Mismatch: No files</span>` : ""}
       </div>
-      <p class="text-xs text-on-surface-variant mt-0.5 truncate">${(L === "en" ? cat.en : cat.n)} · ${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</p>
+      <p class="text-xs text-on-surface-variant mt-0.5 truncate">${(L === "en" ? cat.en : cat.n)} \u00b7 ${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</p>
     </div>
     <div class="flex items-center gap-2 flex-shrink-0">
-      ${fileCount ? `<span class="text-[10px] bg-blue-50 text-river-blue px-2 py-0.5 rounded-full font-bold">${fileCount} ${t("cat.files")}</span>` : ""}
+      ${i.filesCount !== null ? `<span class="text-[10px] ${i.filesCount > 0 ? "bg-blue-50 text-river-blue" : "bg-red-50 text-error border border-red-200"} px-2 py-0.5 rounded-full font-bold">${i.filesCount} ${t("cat.files")}</span>` : ""}
       <span class="material-symbols-outlined text-sm text-on-surface-variant group-hover:text-primary transition-colors">chevron_right</span>
     </div>
   </div>`;
@@ -792,16 +940,20 @@ function renderCatalogItemTable(items, L) {
           ${items.map(i => {
             const cat = CATS.find(c => c.id === i.cat);
             const st = STATUS_MAP[i.status];
-            const fileCount = driveStatusMap[i.id]?.fileCount || 0;
-            return `<tr class="hover:bg-surface-container-low/40 cursor-pointer transition-colors" onclick="navigate('detail',{id:${i.id}})">
+            const fileCount = i.filesCount;
+            const isMismatch = i.validationMatch === 'mismatch';
+            return `<tr class="hover:bg-surface-container-low/40 cursor-pointer transition-colors ${isMismatch ? "bg-red-50/50" : ""}" onclick="navigate('detail',{id:${i.id}})">
               <td class="py-2.5 px-4"><span class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style="background:${cat.cl}">${i.id}</span></td>
               <td class="py-2.5 px-4 font-medium text-on-surface max-w-xs">
-                <p class="truncate">${i.title}</p>
+                <div class="flex items-center gap-2">
+                  <p class="truncate">${i.title}</p>
+                  ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error flex-shrink-0" title="Mismatch">error</span>` : ""}
+                </div>
                 <p class="text-[10px] text-on-surface-variant truncate">${i.desc.substring(0, 60)}…</p>
               </td>
               <td class="py-2.5 px-4 hidden md:table-cell text-xs text-on-surface-variant">${(L === "en" ? cat.en : cat.n).substring(0, 16)}</td>
               <td class="py-2.5 px-4 hidden lg:table-cell text-xs text-on-surface-variant">${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</td>
-              <td class="py-2.5 px-4 text-center text-xs ${fileCount ? "text-river-blue font-bold" : "text-on-surface-variant/40"}">${fileCount || "—"}</td>
+              <td class="py-2.5 px-4 text-center text-xs ${fileCount > 0 ? "text-river-blue font-bold" : "text-error font-bold"}">${fileCount !== null ? fileCount : "—"}</td>
               <td class="py-2.5 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}">${st.label}</span></td>
             </tr>`;
           }).join("")}
@@ -1254,7 +1406,8 @@ async function loadDriveForDetail(indicatorId) {
   evidenceEl.innerHTML = renderDriveLoading();
 
   try {
-    const result = await driveFilesForIndicator(indicatorId, item.cat);
+    const isEn = typeof getLang === 'function' && getLang() === 'en';
+    const result = await driveFilesForIndicator(indicatorId, item.cat, isEn);
 
     // Update mapping verification
     if (mappingEl) {
@@ -1402,6 +1555,10 @@ async function refreshDriveData() {
   if (typeof driveReady === "undefined") return;
   // Clear all caches
   Object.keys(driveCache).forEach(k => delete driveCache[k]);
+  localStorage.removeItem("84th_metadata");
+  localStorage.removeItem("84en_metadata");
+  localStorage.removeItem("84th_last_sync");
+  localStorage.removeItem("84en_last_sync");
   driveFolderMapReady = false;
   driveReady = false;
   driveError = null;

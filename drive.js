@@ -2,6 +2,7 @@
 const DRIVE_CONFIG = {
   API_KEY: "AIzaSyCA2-JWG89Q8DzwnHKBUhb_P3arsd8GizI",
   ROOT_FOLDER_ID: "16SyUIAG8sHsgQDmlGjO5cB4-8nRGP1L9",
+  EN_ROOT_FOLDER_ID: "1hNi__LPENVWEbMMlTU2lOsrZsDLGGY4Y",
   API_BASE: "https://www.googleapis.com/drive/v3",
   CACHE_TTL: 5 * 60 * 1000 // 5 minutes
 };
@@ -379,7 +380,21 @@ function folderMatchesIndicator(folderName, indicatorId) {
   return matchIndicatorNumber(folderName) === indicatorId;
 }
 
-async function driveFilesForIndicator(indicatorId, catId) {
+async function driveFilesForIndicator(indicatorId, catId, useEnglish = false) {
+  if (useEnglish) {
+    const enMeta = window.INDICATOR_EN && window.INDICATOR_EN[indicatorId];
+    if (enMeta && enMeta.folderId) {
+      const indicatorFiles = await driveFiles(enMeta.folderId);
+      let docContent = null;
+      const firstDoc = indicatorFiles.find(f => f.mimeType === "application/vnd.google-apps.document" || f.mimeType.includes("wordprocessingml"));
+      if (firstDoc && firstDoc.mimeType === "application/vnd.google-apps.document") {
+        try { docContent = await driveDocContent(firstDoc.id); } catch(e) { console.warn("Failed to fetch EN doc content", e); }
+      }
+      return { files: indicatorFiles, subfolders: [], docContent, matchedFolder: { name: enMeta.title || "English Folder" } };
+    }
+    return { files: [], subfolders: [], docContent: null, matchedFolder: null };
+  }
+
   await buildDriveFolderMap();
   const catFolderId = driveFolderMap[catId];
   if (!catFolderId) return { files: [], subfolders: [], docContent: null, matchedFolder: null };
@@ -478,6 +493,10 @@ async function initDrive() {
       driveReady = true;
       driveLastSuccess = Date.now();
       startDriveHealthCheck();
+      
+      // Initialize sync engines
+      if (typeof syncEnglishMetadata === "function") syncEnglishMetadata();
+      if (typeof syncThaiMetadata === "function") syncThaiMetadata();
     } else {
       driveError = test.error;
       console.warn("Drive connection failed:", test.error);
@@ -487,4 +506,127 @@ async function initDrive() {
     console.warn("Drive init failed:", e);
   }
   return driveReady;
+}
+
+// === BACKGROUND SYNC ENGINES ===
+window.INDICATOR_EN = (function() { try { return JSON.parse(localStorage.getItem('84en_metadata')) || {}; } catch(e) { return {}; } })();
+window.INDICATOR_TH = (function() { try { return JSON.parse(localStorage.getItem('84th_metadata')) || {}; } catch(e) { return {}; } })();
+
+async function syncThaiMetadata() {
+  if (!driveReady) return;
+  const lastSync = localStorage.getItem('84th_last_sync') || 0;
+  try {
+    const cats = await buildDriveFolderMap();
+    let updatedCount = 0;
+    
+    // Batch process all category folders
+    for (const catId of Object.keys(cats)) {
+      const allItems = await driveListAll(cats[catId]);
+      const folders = allItems.filter(f => f.mimeType === "application/vnd.google-apps.folder");
+      const rootFiles = allItems.filter(f => f.mimeType !== "application/vnd.google-apps.folder");
+      
+      for (let i = 1; i <= 84; i++) {
+        // Skip scanning if this indicator doesn't belong to this category to save time (we check data.js if exists)
+        if (typeof D !== 'undefined' && D[i-1] && D[i-1][1] != catId) continue;
+        
+        const matchFolder = folders.find(f => folderMatchesIndicator(f.name, i));
+        let count = 0;
+        let pFiles = [];
+        
+        // Scan folder if exists, otherwise fallback to root prefix filtering
+        if (matchFolder) {
+           const folderModified = new Date(matchFolder.modifiedTime).getTime();
+           if (!window.INDICATOR_TH[i] || folderModified > parseInt(lastSync) || !window.INDICATOR_TH[i].files) {
+             const subfiles = await driveFiles(matchFolder.id);
+             count = subfiles.length;
+             pFiles = subfiles.map(f => ({id:f.id, name:f.name, link:f.webViewLink}));
+           } else {
+             continue; // Cache is fresh
+           }
+        } else {
+           const matchedRoot = rootFiles.filter(f => matchIndicatorNumber(f.name) === i);
+           count = matchedRoot.length;
+           pFiles = matchedRoot.map(f => ({id:f.id, name:f.name, link:f.webViewLink}));
+        }
+        
+        window.INDICATOR_TH[i] = {
+           id: i,
+           filesCount: count,
+           files: pFiles,
+           fetchedAt: Date.now()
+        };
+        updatedCount++;
+      }
+    }
+    
+    if (updatedCount > 0) {
+      localStorage.setItem('84th_metadata', JSON.stringify(window.INDICATOR_TH));
+      localStorage.setItem('84th_last_sync', Date.now().toString());
+      console.log(`[Drive TH Sync] Updated ${updatedCount} indicators.`);
+      if (typeof getLang === 'function' && getLang() !== 'en' && typeof render === 'function') render();
+    }
+  } catch (e) {
+    console.error("[Drive TH Sync] Failed:", e);
+  }
+}
+
+async function syncEnglishMetadata() {
+  if (!driveReady) return;
+  const lastSync = localStorage.getItem('84en_last_sync') || 0;
+  
+  try {
+    // 1. Fetch folders inside "English Version"
+    const folders = await driveFolders(DRIVE_CONFIG.EN_ROOT_FOLDER_ID);
+    let updatedCount = 0;
+    
+    for (const folder of folders) {
+      const indicatorId = matchIndicatorNumber(folder.name);
+      if (!indicatorId) continue;
+      
+      const folderModified = new Date(folder.modifiedTime).getTime();
+      const lastSyncMs = parseInt(lastSync);
+      
+      // Update if not in cache or folder was modified after last sync
+      if (!window.INDICATOR_EN[indicatorId] || folderModified > lastSyncMs) {
+        const indicatorFiles = await driveFiles(folder.id);
+        const firstDoc = indicatorFiles.find(f => f.mimeType === "application/vnd.google-apps.document" || f.mimeType.includes("wordprocessingml"));
+        
+        let titleEn = null;
+        let descEn = "Translating evidence description... Available soon.";
+        
+        if (firstDoc) {
+          titleEn = firstDoc.name.replace(/^[\d\-\.\s]+/, '').replace(/\.(docx?|pdf|txt)$/i, '').trim() || null;
+          if (firstDoc.mimeType === "application/vnd.google-apps.document") {
+             const docText = await driveDocText(firstDoc.id);
+             if (docText) {
+                const preview = docText.replace(/[\r\n]+/g, ' ').substring(0, 400).trim();
+                if (preview.length > 10) descEn = preview + (preview.length >= 400 ? "..." : "");
+             }
+          }
+        }
+        
+        window.INDICATOR_EN[indicatorId] = {
+           id: indicatorId,
+           folderId: folder.id,
+           title: titleEn || folder.name.replace(/^[\d\-\.\s]+/, '').trim(),
+           desc: descEn,
+           filesCount: indicatorFiles.length,
+           files: indicatorFiles.map(f => ({id:f.id, name:f.name, link:f.webViewLink})),
+           fetchedAt: Date.now()
+        };
+        updatedCount++;
+      }
+    }
+    
+    if (updatedCount > 0) {
+      localStorage.setItem('84en_metadata', JSON.stringify(window.INDICATOR_EN));
+      localStorage.setItem('84en_last_sync', Date.now().toString());
+      console.log(`[Drive EN Sync] Updated ${updatedCount} indicators.`);
+      if (typeof getLang === 'function' && getLang() === 'en' && typeof render === 'function') {
+         render();
+      }
+    }
+  } catch (e) {
+    console.error("[Drive EN Sync] Failed:", e);
+  }
 }
