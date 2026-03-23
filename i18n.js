@@ -1,5 +1,13 @@
 // === INTERNATIONALIZATION (i18n) MODULE ===
-let currentLang = localStorage.getItem("lang") || "th";
+const SUPPORTED_LANGS = ["th", "en"];
+
+function normalizeLang(lang) {
+  return SUPPORTED_LANGS.includes(lang) ? lang : "th";
+}
+
+let currentLang = normalizeLang(localStorage.getItem("84_lang") || localStorage.getItem("lang") || "th");
+localStorage.setItem("84_lang", currentLang);
+document.documentElement.lang = currentLang;
 
 const T = {
   // === GLOBAL ===
@@ -163,6 +171,186 @@ const T = {
   "admin.drive.rescan": { th: "สแกน Drive ใหม่", en: "Re-scan Drive" },
   "admin.folder.title": { th: "แผนผังโฟลเดอร์ Drive", en: "Drive Folder Map" },
   "admin.folder.empty": { th: "ยังไม่มีข้อมูลโฟลเดอร์ — กด \"สแกน Drive ใหม่\"", en: "No folder data — click \"Re-scan Drive\"" },
+  "admin.mapped": { th: "Mapped แล้ว", en: "Mapped" },
+  "admin.locked": { th: "Locked แล้ว", en: "Locked" },
+  "admin.autoDiscover": { th: "Auto-Discover", en: "Auto-Discover" },
+  "admin.lockAll": { th: "ล็อกทั้งหมด", en: "Lock All" },
+  "admin.exportMapping": { th: "Export Mapping", en: "Export Mapping" },
+  "admin.importMapping": { th: "Import Mapping", en: "Import Mapping" },
+  "admin.debug.title": { th: "Data Integrity Debug Table", en: "Data Integrity Debug Table" },
+  "admin.debug.subtitle": { th: "ทุก 84 ตัวชี้วัด — mapping + sync + validation", en: "All 84 indicators — mapping + sync + validation" },
+  "admin.debug.validation": { th: "สถานะ", en: "Status" },
+  "admin.debug.errorLog": { th: "Sync Error Log", en: "Sync Error Log" },
+
+  // === DATA INTEGRITY ===
+  "data.integrity.ok": { th: "ข้อมูลถูกต้อง", en: "Data OK" },
+  "data.integrity.warning": { th: "ไม่สมบูรณ์", en: "Incomplete" },
+  "data.integrity.error": { th: "ข้อผิดพลาด", en: "Error" },
+  "data.integrity.unknown": { th: "ยังไม่ซิงก์", en: "Not Synced" },
+  "data.structure.issue": { th: "พบปัญหาโครงสร้างข้อมูล", en: "Data Structure Issue Detected" },
+
+  // === MAPPING ===
+  "mapping.locked": { th: "Mapping ล็อกแล้ว", en: "Mapping Locked" },
+  "mapping.unlocked": { th: "Mapping ยังไม่ล็อก", en: "Mapping Unlocked" },
+  "mapping.changed": { th: "Mapping เปลี่ยนแปลง", en: "Mapping Changed" },
+  "mapping.changes.detected": { th: "พบการเปลี่ยนแปลง mapping", en: "Mapping changes detected" },
+  "mapping.alert.title": { th: "พบการเปลี่ยนแปลง Folder Mapping", en: "Folder Mapping Changes Detected" },
+  "mapping.alert.changed": { th: "โฟลเดอร์ที่เปลี่ยนแปลง", en: "Changed Folders" },
+  "mapping.alert.apply": { th: "อัปเดต Mapping", en: "Apply Changes" },
+
+  // === SYNC STATUS ===
+  "sync.lastSynced": { th: "ซิงก์ล่าสุด", en: "Last Synced" },
+  "sync.running": { th: "กำลังซิงก์...", en: "Syncing..." },
+  "sync.complete": { th: "ซิงก์เสร็จสิ้น", en: "Sync Complete" },
+
+  // === VALIDATION ===
+  "validation.folderMissing": { th: "ไม่พบโฟลเดอร์", en: "Folder Not Found" },
+  "validation.traversalFailed": { th: "สำรวจโฟลเดอร์ล้มเหลว", en: "Folder Traversal Failed" },
+  "validation.duplicateFiles": { th: "พบไฟล์ซ้ำกันข้ามตัวชี้วัด", en: "Duplicate Files Across Indicators" },
+  "validation.emptySubfolder": { th: "พบโฟลเดอร์ย่อยว่าง", en: "Empty Subfolder Detected" },
+  "validation.rootFilesWithSubfolders": { th: "พบไฟล์ที่ระดับรูทร่วมกับโฟลเดอร์ย่อย", en: "Root-level files exist alongside subfolders" },
+
+  // === SUBFOLDER ===
+  "subfolder.title": { th: "โครงสร้างโฟลเดอร์", en: "Folder Structure" },
+  "subfolder.rootFiles": { th: "ไฟล์ระดับรูท", en: "Root files" },
+  "subfolder.files": { th: "ไฟล์", en: "files" },
+  "subfolder.depth": { th: "ระดับ", en: "Depth" },
+  "subfolder.count": { th: "โฟลเดอร์ย่อย", en: "Subfolders" },
+  "subfolder.enMissing": { th: "ข้อมูลภาษาอังกฤษไม่สมบูรณ์ — ไม่พบโฟลเดอร์ \"English Version\"", en: "Incomplete English data — no \"English Version\" subfolder found" },
+  "subfolder.enFound": { th: "พบโฟลเดอร์ English Version", en: "English Version folder found" },
+
+  // === AUDIT VIEW ===
+  "audit.title": { th: "ภาพรวมสถานะหลักฐาน", en: "Evidence Status Overview" },
+  "audit.subtitle": { th: "สถานะตัวชี้วัดทั้ง 84 ข้อ จากข้อมูลจริงใน Google Drive", en: "Status of all 84 indicators based on actual Google Drive data." },
+  "audit.evidence.available": { th: "มีหลักฐาน", en: "Evidence Available" },
+  "audit.pending": { th: "รอหลักฐาน", en: "Pending" },
+  "audit.mismatch": { th: "สถานะขัดแย้ง", en: "Status Mismatch" },
+  "audit.total": { th: "ตัวชี้วัดทั้งหมด", en: "Total Indicators" },
+  "audit.indicator": { th: "ตัวชี้วัด", en: "Indicator" },
+  "audit.files": { th: "ไฟล์", en: "Files" },
+  "audit.evidence.sample": { th: "ตัวอย่างหลักฐาน", en: "Evidence Sample" },
+  "audit.status": { th: "สถานะ", en: "Status" },
+  "audit.evidence": { th: "หลักฐาน", en: "Evidence" },
+  "audit.mismatch.label": { th: "ขัดแย้ง", en: "Mismatch" },
+  "audit.override.label": { th: "ปรับแล้ว", en: "Override" },
+  "audit.nodata": { th: "ไม่มีข้อมูล", en: "No Data" },
+  "audit.verified": { th: "ตรวจแล้ว", en: "Verified" },
+  "audit.lang.th": { th: "🇹🇭 ไทย", en: "🇹🇭 Thai" },
+  "audit.lang.en": { th: "🌐 อังกฤษ", en: "🌐 English" },
+
+  // === ADMIN PANEL ===
+  "admin.back": { th: "กลับ Dashboard", en: "Back" },
+  "admin.lock.btn": { th: "ล็อก Admin", en: "Lock Admin" },
+  "admin.indicator": { th: "ตัวชี้วัด", en: "Indicator" },
+  "admin.subfolders": { th: "โฟลเดอร์ย่อย", en: "Subfolders" },
+  "admin.depth": { th: "ระดับ", en: "Depth" },
+  "admin.status.header": { th: "สถานะ", en: "Status" },
+  "admin.lock.header": { th: "ล็อก", en: "Lock" },
+  "admin.mismatch.alert": { th: "สถานะขัดแย้ง", en: "Status Mismatch" },
+  "admin.missing.en": { th: "ไม่มี EN Version", en: "Missing EN Version" },
+  "admin.new.found": { th: "พบโฟลเดอร์ใหม่", en: "New folders found" },
+  "admin.missing.folder": { th: "โฟลเดอร์หายไป", en: "Missing folders" },
+  "admin.dismiss": { th: "ปิด", en: "Dismiss" },
+
+  // === CATALOG TABLE ===
+  "cat.indicator": { th: "ตัวชี้วัด", en: "Indicator" },
+  "cat.category": { th: "หมวด", en: "Category" },
+  "cat.agency": { th: "หน่วยงาน", en: "Agency" },
+  "cat.files.header": { th: "ไฟล์", en: "Files" },
+  "cat.status.header": { th: "สถานะ", en: "Status" },
+
+  // === DETAIL VIEW ===
+  "detail.notfound": { th: "ไม่พบตัวชี้วัด", en: "Indicator not found" },
+  "detail.rating.select": { th: "— เลือกระดับ —", en: "— Select rating —" },
+  "detail.rating.5": { th: "5 — สอดคล้องอย่างสมบูรณ์", en: "5 — Fully compliant" },
+  "detail.rating.4": { th: "4 — สอดคล้องเป็นส่วนใหญ่", en: "4 — Mostly compliant" },
+  "detail.rating.3": { th: "3 — สอดคล้องบางส่วน", en: "3 — Partially compliant" },
+  "detail.rating.2": { th: "2 — มีช่องว่างเล็กน้อย", en: "2 — Minor gaps" },
+  "detail.rating.1": { th: "1 — ไม่สอดคล้อง", en: "1 — Non-compliant" },
+
+  // === STATUS ACTIONS ===
+  "status.change.confirm": { th: "เปลี่ยนสถานะเป็น", en: "Change status to" },
+  "status.change.toast": { th: "เปลี่ยนสถานะตัวชี้วัด", en: "Changed indicator status" },
+  "status.reset.confirm": { th: "รีเซ็ตกลับเป็นสถานะจากข้อมูลต้นฉบับ?", en: "Reset to original status from data?" },
+  "status.reset.toast": { th: "รีเซ็ตสถานะแล้ว", en: "Status reset complete" },
+  "status.reset.btn": { th: "รีเซ็ตสถานะเดิม", en: "Reset original" },
+
+  // === DRIVE MESSAGES ===
+  "drive.not.ready": { th: "Drive ยังไม่พร้อม", en: "Drive not ready" },
+  "DRIVE_QUOTA_EXCEEDED": { th: "API quota เกินขีดจำกัด — หยุดเรียก API ชั่วคราว", en: "API quota exceeded — calls paused (quota guard)" },
+  "DRIVE_API_KEY_BLOCKED": { th: "API Key ถูกบล็อก — กรุณาตรวจสอบ Allowed Referrer ใน Google Cloud Console", en: "API Key blocked — check Allowed Referrer in Google Cloud Console" },
+  "DRIVE_FOLDER_NOT_FOUND": { th: "ไม่พบโฟลเดอร์ — ตรวจสอบ Folder ID", en: "Folder not found — check Folder ID" },
+  "DRIVE_ACCESS_DENIED": { th: "ไม่มีสิทธิ์เข้าถึง — ตรวจสอบว่าโฟลเดอร์แชร์เป็น 'Anyone with the link'", en: "Access denied — ensure folder is shared as 'Anyone with the link'" },
+  "drive.error.prefix": { th: "เกิดข้อผิดพลาด: ", en: "Error: " },
+  "drive.scanning": { th: "กำลังสแกน Drive...", en: "Scanning Drive..." },
+  "drive.not.connected": { th: "Drive ยังไม่เชื่อมต่อ", en: "Drive not connected" },
+  "drive.no.mapping": { th: "ยังไม่มี mapping — กด Auto-Discover ก่อน", en: "No mapping to lock — run Auto-Discover first" },
+  "drive.mapping.applied": { th: "อัปเดต mapping แล้ว", en: "Mapping changes applied & locked" },
+  "drive.just_now": { th: "เมื่อสักครู่", en: "Just now" },
+  "drive.updated_x_min_ago": { th: "อัปเดตเมื่อ {x} นาทีที่แล้ว", en: "Updated {x} min ago" },
+  "drive.never_refreshed": { th: "ยังไม่เคยอัปเดต", en: "Never refreshed" },
+
+  // === DASHBOARD HERO ===
+  "dash.hero.completed": { th: "สำเร็จแล้ว", en: "Completed" },
+  "dash.hero.inprogress": { th: "กำลังดำเนินการ", en: "In Progress" },
+  "dash.hero.pending": { th: "รอดำเนินการ", en: "Pending" },
+  "dash.hero.mapped": { th: "จับคู่แล้ว", en: "Mapped" },
+
+  // === MISMATCH (catalog) ===
+  "mismatch.label": { th: "ขัดแย้ง", en: "Mismatch" },
+
+  // === OFFLINE ===
+  "offline.message": { th: "ขาดการเชื่อมต่ออินเทอร์เน็ต", en: "No internet connection" },
+  "offline.retry": { th: "ลองใหม่", en: "Retry" },
+
+  // === SUBMIT MODAL WORKFLOW ===
+  "submit.indicators.completed": { th: "ตัวชี้วัดสำเร็จแล้ว", en: "indicators completed" },
+  "submit.workflow.title": { th: "หลังกดยืนยันแล้วจะเกิดอะไรขึ้น?", en: "What happens after I confirm?" },
+  "submit.step1.title": { th: "บันทึก Snapshot", en: "Snapshot Saved" },
+  "submit.step1.desc": { th: "สถานะปัจจุบันและไฟล์หลักฐานทั้งหมดจะถูกบันทึกเป็น snapshot ลงใน localStorage", en: "Current progress and all evidence files are recorded as a submission snapshot in localStorage." },
+  "submit.step2.title": { th: "ล็อกสถานะ", en: "Status Locked" },
+  "submit.step2.desc": { th: "สถานะตัวชี้วัดจะถูกตรึงไว้ ณ เวลาที่ส่ง ยังคงดูข้อมูลได้แต่ไม่สามารถแก้ไขได้", en: "Indicator statuses are frozen at submission time. You can still view but not change data." },
+  "submit.step3.title": { th: "พร้อมให้ตรวจประเมิน", en: "Ready for Audit" },
+  "submit.step3.desc": { th: "แดชบอร์ดจะเข้าสู่โหมดอ่านอย่างเดียวสำหรับคณะกรรมการตรวจประเมิน Green Destinations", en: "The portfolio dashboard enters read-only mode for the Green Destinations evaluation committee." },
+  "submit.step4.title": { th: "ข้อเสนอแนะจากกรรมการ", en: "Auditor Feedback" },
+  "submit.step4.desc": { th: "กรรมการตรวจแต่ละตัวชี้วัด ให้คะแนนความสอดคล้อง (1-5) และบันทึกข้อเสนอแนะในระบบ", en: "Evaluators review each indicator, rate compliance (1-5), and record feedback in the system." },
+  "submit.step5.title": { th: "ผลการประเมิน", en: "Final Result" },
+  "submit.step5.desc": { th: "Green Destinations ประกาศผล หากผ่านการรับรอง อุทัยธานีจะเข้าสู่ Top 100 อย่างเป็นทางการ", en: "Results are announced by Green Destinations. If certified, Uthai Thani enters the Top 100 list." },
+
+  // === FEEDBACK ===
+  "detail.feedback.recorded": { th: "มีข้อเสนอแนะแล้ว", en: "Feedback recorded" },
+  "detail.feedback.rating.aria": { th: "คะแนน", en: "Rating" },
+  "detail.feedback.delete": { th: "ลบ", en: "Delete" },
+  "detail.feedback.edit": { th: "แก้ไขข้อเสนอแนะ", en: "Edit feedback" },
+  "detail.feedback.update.placeholder": { th: "แก้ไขข้อเสนอแนะ...", en: "Update feedback..." },
+  "detail.feedback.save.changes": { th: "บันทึกการแก้ไข", en: "Save changes" },
+  "detail.feedback.compliance.label": { th: "ระดับความสอดคล้อง", en: "Compliance rating" },
+  "detail.feedback.recommendations.label": { th: "ข้อเสนอแนะและความคิดเห็น", en: "Feedback & recommendations" },
+  "detail.feedback.recommendations.placeholder": { th: "ระบุผลการประเมิน ช่องว่างที่พบ และแนวทางการดำเนินการแนะนำ...", en: "Enter evaluation findings, gaps found, and recommended actions..." },
+  "detail.feedback.save": { th: "บันทึกข้อเสนอแนะ", en: "Save feedback" },
+  "detail.feedback.locked": { th: "ข้อเสนอแนะสำหรับผู้ตรวจประเมินเท่านั้น — เข้าสู่ระบบ Admin เพื่อบันทึกผลการประเมิน", en: "Feedback is restricted to evaluators. Please sign in as Admin to record findings." },
+
+  // === MAPPING VERIFICATION ===
+  "mapping.data.connected": { th: "เชื่อมต่อแหล่งข้อมูลแล้ว", en: "Data source connected" },
+  "mapping.data.awaiting": { th: "รอการเชื่อมต่อข้อมูล", en: "Awaiting data synchronization" },
+  "mapping.pending": { th: "รอข้อมูล", en: "Pending" },
+  "mapping.cat.found": { th: "พบโฟลเดอร์หมวดใน Drive", en: "Category folder found in Drive" },
+  "mapping.cat.notfound": { th: "ไม่พบโฟลเดอร์หมวดใน Drive", en: "Category folder NOT found in Drive" },
+  "mapping.validation.note": { th: "ไฟล์ในโฟลเดอร์ \"{folder}\" ถูกจับคู่กับตัวชี้วัดข้อ {id} หมวด {cat} กรรมการจะตรวจประเมินไฟล์เหล่านี้สำหรับตัวชี้วัดนี้โดยเฉพาะ", en: "Files in folder \"{folder}\" are mapped to Indicator #{id} in Category {cat}. Auditors will review these files for this specific indicator." },
+
+  // === FILE SUMMARY ===
+  "files.count": { th: "ไฟล์", en: "files" },
+  "files.root": { th: "ไฟล์ระดับรูท", en: "Root files" },
+
+  // === EVIDENCE STATES ===
+  "evidence.preparing": { th: "กำลังจัดเตรียมข้อมูลหลักฐาน จะพร้อมแสดงในเร็วๆ นี้", en: "Evidence data is being prepared and will be available soon." },
+  "evidence.en.preparing": { th: "กำลังจัดเตรียมข้อมูลภาษาอังกฤษ จะแสดงอัตโนมัติเมื่อพร้อม", en: "English evidence is being prepared. Content will appear automatically once available." },
+  "traversal.depth": { th: "ระดับ", en: "Depth" },
+  "traversal.folders": { th: "โฟลเดอร์", en: "Folders" },
+  "traversal.subfolders": { th: "โฟลเดอร์ย่อย", en: "Subfolders" },
+
+  // === SNAPSHOT TOAST ===
+  "submit.snapshot.detail": { th: "Snapshot: {done}/{total} สำเร็จ, {fb} ข้อเสนอแนะ", en: "Snapshot: {done}/{total} completed, {fb} feedback recorded" },
 
   // === SUBMIT MODAL ===
   "submit.title": { th: "ส่งผลงาน", en: "Submit Portfolio" },
@@ -178,6 +366,22 @@ const T = {
   // === FOOTER DEV CREDIT ===
   "footer.dev": { th: "พัฒนาโดย นักวิชาการคอมพิวเตอร์ • เทศบาลเมืองอุทัยธานี", en: "Developed by IT Officer • Uthai Thani Municipality" },
   "footer.slogan": { th: "\"ข้อมูลที่ดี คือรากฐานของป่าที่แข็งแรง\"", en: "\"Good data is the root of a resilient forest\"" },
+
+  // === WELCOME PORTAL ===
+  "welcome.title": { th: "ยินดีต้อนรับสู่ Living Portfolio", en: "Welcome to the Living Portfolio" },
+  "welcome.subtitle": { th: "Uthai Thani Green Destination • ระบบตัวชี้วัด 84 ข้อ", en: "Uthai Thani Green Destination • 84 Indicators System" },
+  "welcome.staff.title": { th: "สำหรับเจ้าหน้าที่", en: "For Staff" },
+  "welcome.staff.desc": { th: "โปรดตรวจสอบว่าไฟล์ประเมินทั้งหมดถูกอัปโหลดไปยัง Google Drive อย่างถูกต้อง ระบบจะบังคับใช้ความถูกต้องของข้อมูล และลดสถานะอัตโนมัติเมื่อหลักฐานไม่ครบถ้วน", en: "Ensure all evaluation files are correctly uploaded to Google Drive. The system strictly enforces Data Accuracy and will auto-downgrade incomplete statuses." },
+  "welcome.staff.item1": { th: "อัปโหลดหลักฐานลง Google Drive Folder ที่ถูกต้องโดยตรง", en: "Upload evidence directly to exact Google Drive Folders." },
+  "welcome.staff.item2": { th: "ข้อมูลจะซิงก์อัตโนมัติเมื่อกดปุ่มรีเฟรช", en: "Data syncs automatically upon pressing Refresh." },
+  "welcome.staff.item3": { th: "สถานะ \"สำเร็จ\" ต้องพบไฟล์อย่างน้อย 1 ไฟล์", en: "\"Complete\" status requires at least 1 file to be found." },
+  "welcome.evaluator.title": { th: "สำหรับกรรมการ", en: "For Evaluators" },
+  "welcome.evaluator.desc": { th: "ตรวจสอบหลักฐานเชิงโครงสร้างอย่างเป็นทางการของอุทัยธานี ระบบแยกภาษา (TH/EN) และช่วยลดความคลาดเคลื่อนในการตรวจหลักฐาน", en: "Review the official Uthai Thani structural evidence. Our system isolates languages (TH/EN) and helps minimize false-positives in evidence checks." },
+  "welcome.evaluator.item1": { th: "สลับติดตามภาษาไทย/อังกฤษได้ทันที", en: "Switch instantly between Thai/English tracking." },
+  "welcome.evaluator.item2": { th: "ใช้แท็บ Data Verification เพื่อตรวจเช็กลิสต์ไฟล์ที่ขาดแบบโปร่งใส", en: "Use the Data Verification audit tab to see a transparent checklist of missing files." },
+  "welcome.evaluator.item3": { th: "คลิกไฟล์ในแคตตาล็อกเพื่อเปิดภาพปกความละเอียดสูงอย่างปลอดภัย", en: "Click any catalog file to open high-res thumbnail covers securely." },
+  "welcome.noshow": { th: "ไม่ต้องแสดงอีก (ไม่ติดตามแคชของฉัน)", en: "Do not show again (Don't track my cache)" },
+  "welcome.enter": { th: "เข้าสู่ระบบ", en: "Enter System" },
 
   // === STATIC METADATA (100% EN) ===
   "ข้อตกลงและการจัดองค์กร": { en: "Agreements & Organization" },
@@ -267,19 +471,22 @@ const CAT_NAMES = {
 function t(key) {
   const entry = T[key];
   if (!entry) return key;
-  return entry[currentLang] || entry["th"] || key;
+  return entry[currentLang] || entry["en"] || entry["th"] || key;
 }
 
 function setLang(lang) {
-  currentLang = lang;
-  localStorage.setItem("lang", lang);
-  document.documentElement.lang = lang;
-  
-  // Trigger drive sync for EN dynamically
-  if (lang === 'en' && typeof syncEnglishMetadata === 'function') {
-    syncEnglishMetadata();
+  currentLang = normalizeLang(lang);
+  localStorage.setItem("84_lang", currentLang);
+  document.documentElement.lang = currentLang;
+
+  // Invalidate Drive cache so data reloads for the new language
+  if (typeof driveCache !== 'undefined') {
+    Object.keys(driveCache).forEach(k => delete driveCache[k]);
   }
-  
+
+  // Rebuild language-aware status map
+  if (typeof rebuildDriveStatusMap === 'function') rebuildDriveStatusMap();
+
   // Re-render entire UI
   if (typeof render === "function") render();
   // Update static elements
@@ -319,6 +526,23 @@ function updateStaticI18n() {
   // Sidebar bottom button
   const sideBtn = document.querySelector("#sidebar .border-t button");
   if (sideBtn) sideBtn.textContent = t("nav.dashboard");
+
+  // Welcome language switcher state
+  const welcomeLangTh = document.getElementById("welcomeLangTH");
+  const welcomeLangEn = document.getElementById("welcomeLangEN");
+  if (welcomeLangTh && welcomeLangEn) {
+    const activeCls = ["text-white", "font-bold"];
+    const inactiveCls = ["text-white/70", "font-medium"];
+    welcomeLangTh.classList.remove(...activeCls, ...inactiveCls);
+    welcomeLangEn.classList.remove(...activeCls, ...inactiveCls);
+    if (currentLang === "th") {
+      welcomeLangTh.classList.add(...activeCls);
+      welcomeLangEn.classList.add(...inactiveCls);
+    } else {
+      welcomeLangEn.classList.add(...activeCls);
+      welcomeLangTh.classList.add(...inactiveCls);
+    }
+  }
 }
 
 // Get category name in current language

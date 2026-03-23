@@ -21,6 +21,228 @@
 
 ---
 
+## Platform Specification (Merged)
+
+The following section merges the latest product/system specification into this technical documentation, preserving existing implementation notes and adding scalable architecture guidance.
+
+### 1. Overview
+
+The Living Portfolio Platform is a web-based system designed to manage, track, and present structured project data, supporting multilingual content (Thai/English) and integration with external file storage (e.g., Google Drive).
+
+The system is designed for:
+
+- Administrators
+- Officers / Staff
+- Executives (read-only, insight-focused)
+
+### 2. Objectives
+
+- Provide a centralized platform for project tracking and documentation
+- Enable real-time progress monitoring
+- Support bilingual interface (Thai as default, English as secondary)
+- Ensure user-friendly experience for non-technical users
+- Allow integration with external file storage (Google Drive)
+- Enable scalable architecture for future AI and analytics features
+
+### 3. System Scope
+
+Included:
+
+- Welcome Page (bilingual)
+- Dashboard (project tracking)
+- Document integration (Google Drive)
+- Progress tracking system
+- Reporting (basic)
+
+Excluded (future scope):
+
+- AI analytics engine
+- Advanced reporting automation
+- External API integrations beyond Google Drive
+
+### 4. User Roles
+
+#### 4.1 Administrator
+
+- Manage system configuration
+- Manage users
+- Define project structure
+
+#### 4.2 Officer / Staff
+
+- Upload documents
+- Update project progress
+- Manage assigned data
+
+#### 4.3 Executive
+
+- View dashboard
+- Monitor progress
+- Access reports
+
+### 5. Core Features
+
+#### 5.1 Bilingual System (Thai / English)
+
+- Thai is default language
+- English is secondary
+- Language toggle available globally
+- Language preference stored (localStorage or DB)
+- No mixed-language UI allowed
+
+#### 5.2 Welcome Page
+
+- Displays system introduction
+- Fully bilingual
+- Includes:
+  - Title
+  - Description
+  - Call-to-action
+- Language switcher (`TH | EN`)
+
+#### 5.3 Dashboard System
+
+- Displays project overview
+- Visual progress indicators (`0 / 25 / 50 / 75 / 100`)
+- Filter and search functionality
+- Categorization by project type
+
+#### 5.4 Document Management (Google Drive Integration)
+
+- Files stored externally in Google Drive
+- System reads folder structure as data source
+- Supports:
+  - File preview (thumbnails)
+  - Metadata display
+- Must handle:
+  - Missing files
+  - Nested folders (subfolder edge cases)
+
+#### 5.5 Progress Tracking
+
+- Each project has progress percentage
+- Defined in 5 stages:
+  - `0%`
+  - `25%`
+  - `50%`
+  - `75%`
+  - `100%`
+- Visual representation required
+
+#### 5.6 Reporting System
+
+- Generate summary reports
+- Export as PDF
+- Multi-dimensional view (by project, status, category)
+
+### 6. System Architecture
+
+#### 6.1 Frontend
+
+- Framework: React / Next.js (recommended for future major refactor)
+- Current implementation in this repo: Vanilla JS SPA
+- State Management:
+  - Context-style centralized state patterns are preferred
+- UI:
+  - Responsive design
+  - Executive-friendly dashboard
+
+#### 6.2 Backend (Optional / Hybrid)
+
+Can be:
+
+- Serverless
+- Lightweight API layer
+
+Responsibilities:
+
+- Data aggregation
+- Authentication (if implemented later)
+
+#### 6.3 Data Source
+
+Primary:
+
+- Google Drive (file-based structure)
+
+Optional:
+
+- Database (for metadata, logs, user data)
+
+### 7. Data Structure (Conceptual)
+
+Project:
+
+- `id`
+- `name`
+- `category`
+- `progress` (`0–100`)
+- `driveFolderId`
+- `lastUpdated`
+
+Document:
+
+- `id`
+- `projectId`
+- `fileName`
+- `fileUrl`
+- `fileType`
+
+### 8. UX/UI Principles
+
+- Simple and intuitive
+- Designed for non-technical users
+- Minimal clicks to access key data
+- Executive dashboard should be:
+  - Clear
+  - Insightful
+  - Visually appealing
+
+### 9. Localization Strategy
+
+- Centralized translation file (JSON or JS/TS)
+- No hardcoded text
+- Fallback strategy:
+  - Missing key -> English
+- Scalable for future languages
+
+### 10. Edge Cases & Risks
+
+- Google Drive folder structure inconsistency
+- Missing or duplicated files
+- Language mismatch issues
+- Performance when loading large file sets
+
+### 11. Security Considerations
+
+- Secure access to Google Drive (API scopes)
+- Role-based access (future)
+- Prevent unauthorized file access
+
+### 12. Future Enhancements
+
+- AI-based document analysis
+- Smart reporting system
+- Notification system (e.g., deadline alerts)
+- Data validation automation
+
+### 13. Success Criteria
+
+- Users can navigate system without training
+- All data reflects correctly from Google Drive
+- Language switching works flawlessly
+- Dashboard provides actionable insights
+- System is stable and scalable
+
+### 14. Notes for Reviewers
+
+- Focus on architecture scalability
+- Evaluate Google Drive as primary data source
+- Validate UX for executive users
+- Suggest improvements for long-term maintainability
+
+---
+
 ## 1. Project Overview
 
 Single-page application (SPA) for tracking the **84 Green Destinations / GSTC indicators** required for the Uthai Thani municipality's Top 100 Green Destination certification (2026 cycle). The app:

@@ -1,11 +1,30 @@
+// === LOCALSTORAGE KEY MIGRATION (D-2) ===
+(function migrateLocalStorageKeys() {
+  if (localStorage.getItem("84_migrated") === "1") return;
+  try {
+    // 84status → 84_status_overrides
+    const oldStatus = localStorage.getItem("84status");
+    if (oldStatus && !localStorage.getItem("84_status_overrides")) {
+      localStorage.setItem("84_status_overrides", oldStatus);
+    }
+    // lang → 84_lang
+    const oldLang = localStorage.getItem("lang");
+    if (oldLang && !localStorage.getItem("84_lang")) {
+      localStorage.setItem("84_lang", oldLang);
+    }
+    localStorage.setItem("84_migrated", "1");
+    console.log("[Migration] localStorage keys migrated successfully");
+  } catch (e) { console.warn("[Migration] Error:", e); }
+})();
+
 // === ADMIN MODE ===
-let adminUnlocked = (function() { try { return sessionStorage.getItem('84admin') === '1'; } catch(e) { return false; } })();
+let adminUnlocked = (function () { try { return sessionStorage.getItem('84admin') === '1'; } catch (e) { return false; } })();
 
 function promptAdmin() {
   const pw = prompt("🔐 รหัสผ่าน Admin:");
   if (pw === null) return;
   if (pw === 'admin123') {
-    try { sessionStorage.setItem('84admin', '1'); } catch(e) {}
+    try { sessionStorage.setItem('84admin', '1'); } catch (e) { }
     adminUnlocked = true;
     navigate('admin');
     showToast('🔓 Admin Mode เปิดแล้ว');
@@ -15,7 +34,7 @@ function promptAdmin() {
 }
 
 function lockAdmin() {
-  try { sessionStorage.removeItem('84admin'); } catch(e) {}
+  try { sessionStorage.removeItem('84admin'); } catch (e) { }
   adminUnlocked = false;
   showToast('🔒 Admin Mode ปิดแล้ว');
   navigate('dashboard');
@@ -28,7 +47,9 @@ const STATUS_MAP = new Proxy(STATUS_RAW, { get(target, prop) { const s = target[
 function getIndicators() {
   const overrides = getStatusOverrides();
   const L = typeof getLang === 'function' ? getLang() : 'th';
-  
+  const syncState = typeof loadSyncState === 'function' ? loadSyncState() : {};
+  const mappingAll = typeof loadMapping === 'function' ? loadMapping() : {};
+
   return D.map(d => {
     const id = d[0];
     const ov = overrides[id];
@@ -36,54 +57,103 @@ function getIndicators() {
     let title = d[3];
     let desc = d[4];
     let agencies = d[5].split("|");
-    
+
     if (L === 'en') {
       agencies = agencies.map(a => t(a));
-      
-      // If we have downloaded EN data from Drive (to be implemented), use it
+
+      // Priority: Drive EN data > data.js titleEn/descEn > placeholder
       if (typeof INDICATOR_EN !== 'undefined' && INDICATOR_EN[id]) {
-         title = INDICATOR_EN[id].title || title;
-         desc = INDICATOR_EN[id].desc || desc;
+        title = INDICATOR_EN[id].title || title;
+        desc = INDICATOR_EN[id].desc || desc;
+      } else if (d[7]) {
+        title = d[7];
+        desc = d[8] || desc;
       } else {
-         // Fallback placeholders when Google Drive sync has no EN content yet
-         title = "Content Pending (English Version)";
-         desc = "The Uthai Thani Municipality team is actively preparing and translating evidence for this indicator into the Google Drive 'English Version' workspace. This content will sync automatically once available.";
+        title = "Content Pending (English Version)";
+        desc = "The Uthai Thani Municipality team is actively preparing and translating evidence for this indicator into the Google Drive 'English Version' workspace. This content will sync automatically once available.";
       }
     }
-    
-    let status = ov ? ov.status : d[6];
-    let validationMatch = 'ok';
+
+    const originalStatus = d[6]; // Status from data source (before any override)
     let filesCount = null;
     let files = [];
-    
-    // Auto-Downgrade Engine & Validation Logic
-    if (L === 'en' && typeof INDICATOR_EN !== 'undefined' && INDICATOR_EN[id]) {
-       filesCount = INDICATOR_EN[id].filesCount !== undefined ? INDICATOR_EN[id].filesCount : 0;
-       files = INDICATOR_EN[id].files || [];
-    } else if (L !== 'en' && typeof INDICATOR_TH !== 'undefined' && INDICATOR_TH[id]) {
-       filesCount = INDICATOR_TH[id].filesCount !== undefined ? INDICATOR_TH[id].filesCount : 0;
-       files = INDICATOR_TH[id].files || [];
-    }
-    
-    if (filesCount !== null && filesCount !== undefined) {
-        if (filesCount === 0) {
-            if (status === 'c' || status === 'p') validationMatch = 'mismatch'; // 0 files but explicitly marked active/complete
-            status = 'w'; // FORCE downgrade to Missing
-        } else if (filesCount > 0) {
-            if (status === 'w') {
-                validationMatch = 'review'; // Files exist but marked missing (default state).
-                status = 'p'; // Auto-upgrade to In Progress
-            }
-        }
+    let dataNotReady = false;
+
+    // Strict language separation: use ONLY the correct dataset
+    if (L === 'en') {
+      if (typeof INDICATOR_EN !== 'undefined' && INDICATOR_EN[id]) {
+        filesCount = INDICATOR_EN[id].filesCount !== undefined ? INDICATOR_EN[id].filesCount : 0;
+        files = INDICATOR_EN[id].files || [];
+      } else {
+        dataNotReady = true;
+      }
+    } else {
+      if (typeof INDICATOR_TH !== 'undefined' && INDICATOR_TH[id]) {
+        filesCount = INDICATOR_TH[id].filesCount !== undefined ? INDICATOR_TH[id].filesCount : 0;
+        files = INDICATOR_TH[id].files || [];
+      } else {
+        dataNotReady = true;
+      }
     }
 
-    return { 
-       id, cat: d[1], sub, title, desc, agencies, 
-       status, 
-       statusOverridden: !!ov,
-       validationMatch,
-       filesCount,
-       files
+    // Auto Status Calculation from Drive data:
+    // ≥1 file = "c" (Complete), 0 files = "w" (Pending)
+    let autoStatus = dataNotReady ? 'w' : (filesCount > 0 ? 'c' : 'w');
+    let status = ov ? ov.status : autoStatus;
+    let validationMatch = 'ok';
+
+    // Detect mismatch between override/original and auto-calculated
+    if (ov && ov.status !== autoStatus) {
+      validationMatch = 'override_mismatch';
+    } else if (!ov && !dataNotReady && filesCount !== null) {
+      if (filesCount === 0 && (originalStatus === 'c' || originalStatus === 'p')) {
+        validationMatch = 'mismatch';
+      }
+    }
+
+    // Data Integrity Status (from sync state, independent of business status)
+    let dataIntegrity = 'unknown';
+    let dataIssues = [];
+    let lastSyncedAt = null;
+    const syncEntry = syncState[id];
+    if (syncEntry) {
+      dataIntegrity = syncEntry.validationStatus || 'ok';
+      dataIssues = syncEntry.validationIssues || [];
+      lastSyncedAt = syncEntry.lastSyncedAt || null;
+    } else {
+      const mapping = mappingAll[id] || null;
+      if (!mapping) {
+        dataIntegrity = 'error';
+        dataIssues = ['No folder mapping'];
+      } else {
+        dataIntegrity = 'unknown';
+        dataIssues = ['Not yet synced'];
+      }
+    }
+
+    // Subfolder and English Version info from sync state
+    let hasEnglishVersion = false;
+    let subfolderNames = [];
+    if (syncEntry) {
+      hasEnglishVersion = !!syncEntry.hasEnglishVersion;
+      subfolderNames = syncEntry.subfolderNames || [];
+    }
+
+    return {
+      id, cat: d[1], sub, title, desc, agencies,
+      status,
+      autoStatus,
+      originalStatus,
+      statusOverridden: !!ov,
+      validationMatch,
+      filesCount,
+      files,
+      dataNotReady,
+      dataIntegrity,
+      dataIssues,
+      lastSyncedAt,
+      hasEnglishVersion,
+      subfolderNames
     };
   });
 }
@@ -106,43 +176,41 @@ function totalStats() {
 
 // === ADMIN STATUS OVERRIDES (localStorage) ===
 function getStatusOverrides() {
-  try { return JSON.parse(localStorage.getItem('84status') || '{}'); } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem('84_status_overrides') || '{}'); } catch (e) { return {}; }
 }
 function saveStatusOverride(indicatorId, newStatus) {
   const ov = getStatusOverrides();
   ov[indicatorId] = { status: newStatus, ts: new Date().toISOString(), by: 'admin' };
-  try { localStorage.setItem('84status', JSON.stringify(ov)); } catch(e) {}
+  try { localStorage.setItem('84_status_overrides', JSON.stringify(ov)); } catch (e) { }
 }
 function clearStatusOverride(indicatorId) {
   const ov = getStatusOverrides();
   delete ov[indicatorId];
-  try { localStorage.setItem('84status', JSON.stringify(ov)); } catch(e) {}
+  try { localStorage.setItem('84_status_overrides', JSON.stringify(ov)); } catch (e) { }
 }
 function changeIndicatorStatus(indicatorId, newStatus) {
-  const L = getLang();
-  const labels = { c: L === 'en' ? 'Completed' : 'ดำเนินการแล้ว', p: L === 'en' ? 'In Progress' : 'กำลังดำเนินการ', w: L === 'en' ? 'Pending' : 'รอดำเนินการ' };
-  if (!confirm(`${L === 'en' ? 'Change status to' : 'เปลี่ยนสถานะเป็น'} "${labels[newStatus]}"?`)) return;
+  const labels = { c: t('status.completed'), p: t('status.in_progress'), w: t('status.pending') };
+  if (!confirm(`${t('status.change.confirm')} "${labels[newStatus]}"?`)) return;
   saveStatusOverride(indicatorId, newStatus);
-  showToast(`✅ เปลี่ยนสถานะตัวชี้วัด #${indicatorId} เป็น "${labels[newStatus]}"`);
+  showToast(`✅ ${t('status.change.toast')} #${indicatorId} → "${labels[newStatus]}"`);
   render();
 }
 function resetIndicatorStatus(indicatorId) {
-  const L = getLang();
-  if (!confirm(L === 'en' ? 'Reset to original status from data?' : 'รีเซ็ตกลับเป็นสถานะจากข้อมูลต้นฉบับ?')) return;
+  if (!confirm(t('status.reset.confirm'))) return;
   clearStatusOverride(indicatorId);
-  showToast('รีเซ็ตสถานะแล้ว');
+  showToast(t('status.reset.toast'));
   render();
 }
 
 // === AUDITOR FEEDBACK STORAGE ===
 function getFeedback(indicatorId) {
-  try { return JSON.parse(localStorage.getItem(`84fb_${indicatorId}`) || 'null'); } catch(e) { return null; }
+  try { return JSON.parse(localStorage.getItem(`84fb_${indicatorId}`) || 'null'); } catch (e) { return null; }
 }
 function saveFeedback(indicatorId, data) {
-  try { localStorage.setItem(`84fb_${indicatorId}`, JSON.stringify(data)); } catch(e) {}
+  try { localStorage.setItem(`84fb_${indicatorId}`, JSON.stringify(data)); } catch (e) { }
 }
 function deleteFeedback(indicatorId) {
-  try { localStorage.removeItem(`84fb_${indicatorId}`); } catch(e) {}
+  try { localStorage.removeItem(`84fb_${indicatorId}`); } catch (e) { }
 }
 function saveFeedbackFromForm(indicatorId) {
   const el = document.getElementById(`feedback-text-${indicatorId}`);
@@ -167,8 +235,8 @@ function clearFeedback(indicatorId) {
 let currentView = "dashboard";
 let currentFilter = { cat: 0, status: "", search: "" };
 let suppressHash = false;
-let catalogView = (function() { try { return localStorage.getItem("84catalogView") || "grid"; } catch(e) { return "grid"; } })();
-function setCatalogView(v) { catalogView = v; try { localStorage.setItem("84catalogView", v); } catch(e) {} render(); }
+let catalogView = (function () { try { return localStorage.getItem("84catalogView") || "grid"; } catch (e) { return "grid"; } })();
+function setCatalogView(v) { catalogView = v; try { localStorage.setItem("84catalogView", v); } catch (e) { } render(); }
 
 function navigate(view, params) {
   currentView = view;
@@ -291,7 +359,7 @@ function updateSidebar() {
       <a class="flex items-center space-x-3 px-3 py-2.5 ${currentView === "catalog" && currentFilter.cat === c.id ? "bg-white/80 text-emerald-800 font-bold rounded-lg" : "text-on-surface-variant hover:bg-white/50 rounded-lg"} cursor-pointer transition-all group" onclick="navigate('catalog',{cat:${c.id},status:'',search:''})">
         <span class="material-symbols-outlined text-xl" style="color:${c.cl}">${c.ic}</span>
         <div class="flex-1 min-w-0">
-          <span class="text-sm block truncate">${L === "en" ? c.en : c.n}</span>
+          <span class="text-sm block truncate">${catName(c.id)}</span>
           <div class="flex items-center mt-1">
             <div class="h-1 flex-1 bg-black/5 rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:${c.pct}%;background:${c.cl}"></div></div>
             <span class="text-[10px] ml-2 text-on-surface-variant">${c.done}/${c.total}</span>
@@ -322,7 +390,7 @@ function renderDashboard() {
         <div class="flex items-center gap-3 flex-wrap">
           <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest" style="background:rgba(200,149,46,0.2);color:#f1c048">${t("dash.cycle")}</span>
           <span class="flex items-center gap-1 px-2.5 py-1 rounded-full" style="background:rgba(255,255,255,0.1)">${driveStatusHTMLLight()}</span>
-          ${mappedCount > 0 ? `<span class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold" style="background:rgba(165,208,185,0.15);color:#a5d0b9"><span class="material-symbols-outlined" style="font-size:13px">link</span>${mappedCount}/84 ${L === 'en' ? 'Mapped' : 'จับคู่แล้ว'}</span>` : ''}
+          ${mappedCount > 0 ? `<span class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold" style="background:rgba(165,208,185,0.15);color:#a5d0b9"><span class="material-symbols-outlined" style="font-size:13px">link</span>${mappedCount}/84 ${t('dash.hero.mapped')}</span>` : ''}
         </div>
         <h1 class="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight leading-tight" style="color:#ffffff">
           ${t("dash.hero.title1")}<br/><span style="color:#75daa8">${t("dash.hero.title2")}</span>
@@ -336,21 +404,21 @@ function renderDashboard() {
             <span class="material-symbols-outlined text-xl" style="color:#75daa8">check_circle</span>
             <div>
               <div class="text-2xl font-headline font-black" style="color:#ffffff">${s.done}</div>
-              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${L === 'en' ? 'Completed' : 'สำเร็จแล้ว'}</div>
+              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${t('dash.hero.completed')}</div>
             </div>
           </div>
           <div class="flex items-center gap-2 px-4 py-2.5 rounded-2xl" style="background:rgba(255,255,255,0.08);backdrop-filter:blur(10px)">
             <span class="material-symbols-outlined text-xl" style="color:#f1c048">pending</span>
             <div>
               <div class="text-2xl font-headline font-black" style="color:#ffffff">${inProgressCount}</div>
-              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${L === 'en' ? 'In Progress' : 'กำลังดำเนินการ'}</div>
+              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${t('dash.hero.inprogress')}</div>
             </div>
           </div>
           <div class="flex items-center gap-2 px-4 py-2.5 rounded-2xl" style="background:rgba(255,255,255,0.06);backdrop-filter:blur(10px)">
             <span class="material-symbols-outlined text-xl" style="color:rgba(255,255,255,0.4)">schedule</span>
             <div>
               <div class="text-2xl font-headline font-black" style="color:#ffffff">${s.pend}</div>
-              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${L === 'en' ? 'Pending' : 'รอดำเนินการ'}</div>
+              <div class="text-[10px] font-bold uppercase tracking-wide" style="color:rgba(255,255,255,0.55)">${t('dash.hero.pending')}</div>
             </div>
           </div>
         </div>
@@ -422,7 +490,7 @@ function renderDashboard() {
             ${c.pct === 100 ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">${t("status.done")}</span>`
       : `<span class="text-xs font-bold text-on-surface-variant">${c.done} / ${c.total}</span>`}
           </div>
-          <h3 class="font-headline font-bold text-on-surface mb-1 text-sm">${L === "en" ? c.en : c.n}</h3>
+          <h3 class="font-headline font-bold text-on-surface mb-1 text-sm">${catName(c.id)}</h3>
           <p class="text-[11px] text-on-surface-variant mb-3 font-thai">${L === "en" && c.locEn ? c.locEn : c.loc}</p>
           <div class="space-y-1">
             <div class="flex justify-between text-[11px] font-bold">
@@ -469,7 +537,7 @@ function renderDashboard() {
         const cp = ci.filter(i => i.status === "p").length;
         const cw = ci.filter(i => i.status === "w").length;
         return `<tr class="border-b border-outline-variant/5 hover:bg-surface-container-low cursor-pointer" onclick="navigate('catalog',{cat:${c.id},status:'',search:''})">
-                <td class="py-2.5 font-medium"><span class="material-symbols-outlined text-sm mr-1 align-middle" style="color:${c.cl}">${c.ic}</span>${L === "en" ? c.en : c.n}</td>
+                <td class="py-2.5 font-medium"><span class="material-symbols-outlined text-sm mr-1 align-middle" style="color:${c.cl}">${c.ic}</span>${catName(c.id)}</td>
                 <td class="py-2.5 text-center text-emerald-700 font-bold">${cd}</td>
                 <td class="py-2.5 text-center text-amber-600 font-bold">${cp}</td>
                 <td class="py-2.5 text-center text-gray-500 font-bold">${cw}</td>
@@ -514,41 +582,47 @@ function renderDashboard() {
 function renderAudit() {
   const L = getLang();
   const items = getIndicators();
-  
-  const mismatchItems = items.filter(i => i.validationMatch === 'mismatch');
-  const reviewItems = items.filter(i => i.validationMatch === 'review');
-  const missingItems = items.filter(i => i.filesCount === 0);
-  const okItems = items.filter(i => i.validationMatch === 'ok' && i.filesCount > 0);
-  
+  const isAdmin = adminUnlocked;
+
+  const completeItems = items.filter(i => i.status === 'c');
+  const pendingItems = items.filter(i => i.status === 'w');
+  const mismatchItems = items.filter(i => i.validationMatch === 'mismatch' || i.validationMatch === 'override_mismatch');
+
   return `<div data-view="audit" class="px-4 md:px-8 py-6 max-w-7xl w-full mx-auto space-y-6">
     <div class="flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#B91C1C,#7F1D1D)">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#0A3D2A,#0D6B3F)">
           <span class="material-symbols-outlined text-white">fact_check</span>
         </div>
         <div>
-          <h1 class="text-xl font-headline font-extrabold text-on-surface">${L === 'en' ? 'Data Mapping Verification' : 'ระบบตรวจสอบความถูกต้องของข้อมูล'}</h1>
-          <p class="text-xs text-on-surface-variant shadow-none">${L === 'en' ? 'Verify Google Drive mapping and strictly enforce Zero False-Positives.' : 'ตรวจสอบโครงสร้างและป้องกันการแสดงสถานะเป็นเท็จ'}</p>
+          <h1 class="text-xl font-headline font-extrabold text-on-surface">${t('audit.title')}</h1>
+          <p class="text-xs text-on-surface-variant shadow-none">${t('audit.subtitle')}</p>
         </div>
       </div>
-      <button onclick="navigate('dashboard')" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-white px-3 py-2 rounded-xl border border-outline-variant/20 hover:bg-surface-container-low transition-colors">
-        <span class="material-symbols-outlined text-sm">arrow_back</span>${t("detail.breadcrumb.home")}
-      </button>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold px-2 py-1 rounded-full ${L === 'en' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}">${L === 'en' ? t('audit.lang.en') : t('audit.lang.th')}</span>
+        <button onclick="navigate('dashboard')" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-white px-3 py-2 rounded-xl border border-outline-variant/20 hover:bg-surface-container-low transition-colors">
+          <span class="material-symbols-outlined text-sm">arrow_back</span>${t("detail.breadcrumb.home")}
+        </button>
+      </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-      <div class="bg-red-50 p-4 rounded-xl text-center border border-red-200 cursor-pointer hover:bg-red-100" onclick="alert('${L === 'en' ? 'Mismatch: Admin explicitly forced status to Complete/Progress, but 0 evidence files were found in Google Drive. Status Auto-Downgraded.' : 'สถานะขัดแย้ง: ข้อมูลถูกปรับปรุงด้วยผู้ดูแลระบบให้สมบูรณ์ แต่ไม่มีไฟล์หลักฐานใน Drive ระบบจึงปรับลดสถานะอัตโนมัติ'}')">
-        <p class="text-3xl font-black text-error">${mismatchItems.length}</p>
-        <p class="text-[10px] font-bold text-red-700 mt-1">${L === 'en' ? 'Critical Mismatch' : 'สถานะขัดแย้ง (วิกฤต)'} <span class="material-symbols-outlined text-[10px]">info</span></p>
-      </div>
-      <div class="bg-amber-50 p-4 rounded-xl text-center border border-amber-200">
-        <p class="text-3xl font-black text-amber-600">${reviewItems.length + missingItems.length}</p>
-        <p class="text-[10px] font-bold text-amber-700 mt-1">${L === 'en' ? 'Pending Evidence' : 'รอหลักฐาน / รอประเมิน'}</p>
-      </div>
+    <div class="grid grid-cols-3 gap-4">
       <div class="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-200">
-        <p class="text-3xl font-black text-emerald-600">${okItems.length}</p>
-        <p class="text-[10px] font-bold text-emerald-700 mt-1">${L === 'en' ? 'Verified Intact' : 'ตรวจสอบแล้ว'}</p>
+        <p class="text-3xl font-black text-emerald-600">${completeItems.length}</p>
+        <p class="text-[10px] font-bold text-emerald-700 mt-1">${t('audit.evidence.available')}</p>
       </div>
+      <div class="bg-gray-50 p-4 rounded-xl text-center border border-gray-200">
+        <p class="text-3xl font-black text-gray-500">${pendingItems.length}</p>
+        <p class="text-[10px] font-bold text-gray-600 mt-1">${t('audit.pending')}</p>
+      </div>
+      ${isAdmin ? `<div class="bg-red-50 p-4 rounded-xl text-center border border-red-200">
+        <p class="text-3xl font-black text-error">${mismatchItems.length}</p>
+        <p class="text-[10px] font-bold text-red-700 mt-1">${t('audit.mismatch')}</p>
+      </div>` : `<div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-200">
+        <p class="text-3xl font-black text-river-blue">84</p>
+        <p class="text-[10px] font-bold text-blue-700 mt-1">${t('audit.total')}</p>
+      </div>`}
     </div>
 
     <div class="bg-white rounded-2xl overflow-hidden shadow-sm mt-6">
@@ -557,35 +631,44 @@ function renderAudit() {
           <thead>
             <tr class="border-b border-outline-variant/10 bg-surface-container-low/50">
               <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant w-12">#</th>
-              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant min-w-[200px]">${L === 'en' ? 'Indicator' : 'ตัวชี้วัด'}</th>
-              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-20">${L === 'en' ? 'Files' : 'ไฟล์'}</th>
-              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden md:table-cell">${L === 'en' ? 'Evidence Sample' : 'ตัวอย่างหลักฐาน'}</th>
-              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-24">${L === 'en' ? 'Actual Status' : 'สถานะจริง'}</th>
-              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-28">${L === 'en' ? 'Validation' : 'ผลตรวจสอบ'}</th>
+              <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant min-w-[200px]">${t('audit.indicator')}</th>
+              ${isAdmin ? `<th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-20">${t('audit.files')}</th>` : ''}
+              ${isAdmin ? `<th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden md:table-cell">${t('audit.evidence.sample')}</th>` : ''}
+              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-24">${t('audit.status')}</th>
+              <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant w-28">${t('audit.evidence')}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
             ${items.map(i => {
-               const st = STATUS_MAP[i.status];
-               let valBadge = '';
-               if (i.validationMatch === 'mismatch') valBadge = `<span class="bg-red-100 text-error px-2 py-0.5 rounded text-[10px] font-bold">Mismatch 🔴</span>`;
-               else if (i.filesCount === 0) valBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold">Missing</span>`;
-               else if (i.validationMatch === 'review') valBadge = `<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">Review</span>`;
-               else valBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">Verified 🟢</span>`;
-               
-               const fileListStr = (i.files && i.files.length > 0) ? i.files.slice(0, 2).map(f => `<a href="${f.link}" target="_blank" class="text-river-blue hover:underline text-[10px] inline-block truncate max-w-[120px] align-bottom" title="${f.name}">${f.name}</a>`).join('<br>') + (i.files.length > 2 ? '<br><span class="text-on-surface-variant/70 text-[9px]">...more</span>' : '') : '<span class="text-on-surface-variant/50 text-[10px]">No files mapped</span>';
+    const st = STATUS_MAP[i.status];
+    // Public: simplified badge (has evidence / no evidence)
+    // Admin: full validation details
+    let valBadge = '';
+    if (isAdmin) {
+      if (i.validationMatch === 'mismatch') valBadge = `<span class="bg-red-100 text-error px-2 py-0.5 rounded text-[10px] font-bold">${t('audit.mismatch.label')} 🔴</span>`;
+      else if (i.validationMatch === 'override_mismatch') valBadge = `<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">${t('audit.override.label')} ⚠️</span>`;
+      else if (i.filesCount === 0 || i.dataNotReady) valBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold">${t('audit.nodata')}</span>`;
+      else valBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">${t('audit.verified')} ✓</span>`;
+    } else {
+      if (i.filesCount > 0 && !i.dataNotReady) valBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">✓</span>`;
+      else if (i.dataNotReady) valBadge = `<span class="bg-gray-100 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold">—</span>`;
+      else valBadge = `<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold">✗</span>`;
+    }
 
-               return `<tr class="hover:bg-surface-container-low/40 transition-colors ${i.validationMatch === 'mismatch' ? 'bg-red-50/30' : ''}">
+    // Admin-only: file list with links
+    const fileListStr = isAdmin && (i.files && i.files.length > 0) ? i.files.slice(0, 2).map(f => `<a href="${f.link}" target="_blank" class="text-river-blue hover:underline text-[10px] inline-block truncate max-w-[120px] align-bottom" title="${f.name}">${f.name}</a>`).join('<br>') + (i.files.length > 2 ? '<br><span class="text-on-surface-variant/70 text-[9px]">...more</span>' : '') : '';
+
+    return `<tr class="hover:bg-surface-container-low/40 transition-colors ${isAdmin && (i.validationMatch === 'mismatch' || i.validationMatch === 'override_mismatch') ? 'bg-red-50/30' : ''}">
                  <td class="py-3 px-4 font-bold text-xs">${i.id}</td>
                  <td class="py-3 px-4 cursor-pointer" onclick="navigate('detail',{id:${i.id}})">
                    <p class="font-medium text-xs text-on-surface">${i.title}</p>
                  </td>
-                 <td class="py-3 px-4 text-center text-xs font-bold ${i.filesCount > 0 ? 'text-river-blue' : 'text-error'}">${i.filesCount !== null ? i.filesCount : '?'}</td>
-                 <td class="py-3 px-4 hidden md:table-cell text-[10px]">${fileListStr}</td>
+                 ${isAdmin ? `<td class="py-3 px-4 text-center text-xs font-bold ${i.filesCount > 0 ? 'text-river-blue' : 'text-error'}">${i.filesCount !== null ? i.filesCount : '?'}</td>` : ''}
+                 ${isAdmin ? `<td class="py-3 px-4 hidden md:table-cell text-[10px]">${fileListStr || '<span class="text-on-surface-variant/50 text-[10px]">—</span>'}</td>` : ''}
                  <td class="py-3 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span></td>
                  <td class="py-3 px-4 text-center">${valBadge}</td>
                </tr>`;
-            }).join('')}
+  }).join('')}
           </tbody>
         </table>
       </div>
@@ -597,9 +680,30 @@ function renderAudit() {
 function renderAdmin() {
   const L = getLang();
   const q = (typeof driveQuota !== "undefined") ? driveQuota.getStats() : null;
-  const mappedCount = Object.keys(driveStatusMap).length;
+  const mapping = typeof loadMapping === "function" ? loadMapping() : {};
+  const syncState = typeof loadSyncState === "function" ? loadSyncState() : {};
+  const mappedCount = Object.keys(mapping).filter(k => mapping[k] && mapping[k].folderId).length;
+  const lockedCount = Object.keys(mapping).filter(k => mapping[k] && mapping[k].locked).length;
+  const enVersionCount = Object.keys(mapping).filter(k => mapping[k] && mapping[k].hasEnglishVersion).length;
   const s = totalStats();
-  return `<div data-view="admin" class="px-4 md:px-8 py-6 max-w-4xl w-full mx-auto space-y-6">
+  const lastSync = syncState._lastFullSync ? new Date(syncState._lastFullSync).toLocaleString(L === "en" ? "en-US" : "th-TH") : "—";
+  const syncErrors = syncState._errors || [];
+
+  // Validation summary from sync state
+  let valOk = 0, valWarn = 0, valErr = 0;
+  for (let i = 1; i <= 84; i++) {
+    const se = syncState[i];
+    if (!se) { valErr++; continue; }
+    if (se.validationStatus === "ok") valOk++;
+    else if (se.validationStatus === "warning") valWarn++;
+    else valErr++;
+  }
+  // Status mismatch count (current vs auto-calculated)
+  const allItems = getIndicators();
+  const statusMismatchCount = allItems.filter(x => x.validationMatch === 'mismatch' || x.validationMatch === 'override_mismatch').length;
+  const missingEnCount = allItems.filter(x => !x.hasEnglishVersion && x.filesCount > 0).length;
+
+  return `<div data-view="admin" class="px-4 md:px-8 py-6 max-w-6xl w-full mx-auto space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-3">
@@ -608,51 +712,83 @@ function renderAdmin() {
         </div>
         <div>
           <h1 class="text-xl font-headline font-extrabold text-on-surface">Admin Panel</h1>
-          <p class="text-xs text-on-surface-variant">เข้าถึงได้เฉพาะผู้ดูแลระบบ</p>
+          <p class="text-xs text-on-surface-variant">${t("admin.subtitle")}</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
         <button onclick="navigate('dashboard')" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-white px-3 py-2 rounded-xl border border-outline-variant/20 hover:bg-surface-container-low transition-colors">
-          <span class="material-symbols-outlined text-sm">arrow_back</span>กลับ Dashboard
+          <span class="material-symbols-outlined text-sm">arrow_back</span>${t('admin.back')}
         </button>
         <button onclick="lockAdmin()" class="flex items-center gap-1.5 text-xs font-bold text-error bg-red-50 px-3 py-2 rounded-xl border border-red-100 hover:bg-red-100 transition-colors">
-          <span class="material-symbols-outlined text-sm">lock</span>ล็อก Admin
+          <span class="material-symbols-outlined text-sm">lock</span>${t('admin.lock.btn')}
         </button>
       </div>
     </div>
 
-    <!-- Drive Status Overview -->
+    <!-- Drive Status + Integrity Overview -->
     <div class="bg-white rounded-2xl p-6 space-y-4">
       <div class="flex items-center gap-2 mb-1">
         <span class="material-symbols-outlined text-river-blue">cloud_sync</span>
-        <h2 class="font-headline font-bold text-on-surface">สถานะ Google Drive</h2>
+        <h2 class="font-headline font-bold text-on-surface">${t("admin.drive.title")}</h2>
         <span class="ml-auto">${driveStatusHTML()}</span>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
         <div class="bg-emerald-50 rounded-xl p-3 text-center">
-          <div class="text-xl font-headline font-black text-emerald-700">${Object.keys(typeof driveFolderMap !== 'undefined' ? driveFolderMap : {}).length}</div>
-          <div class="text-[10px] font-bold text-emerald-600 mt-0.5">หมวดใน Drive</div>
+          <div class="text-xl font-headline font-black text-emerald-700">${mappedCount}</div>
+          <div class="text-[10px] font-bold text-emerald-600 mt-0.5">${t("admin.mapped")}</div>
         </div>
         <div class="bg-blue-50 rounded-xl p-3 text-center">
-          <div class="text-xl font-headline font-black text-river-blue">${mappedCount}</div>
-          <div class="text-[10px] font-bold text-river-blue mt-0.5">ตัวชี้วัดที่ Scan แล้ว</div>
+          <div class="text-xl font-headline font-black text-river-blue">${lockedCount}</div>
+          <div class="text-[10px] font-bold text-river-blue mt-0.5">${t("admin.locked")}</div>
+        </div>
+        <div class="bg-indigo-50 rounded-xl p-3 text-center">
+          <div class="text-xl font-headline font-black text-indigo-600">${enVersionCount}</div>
+          <div class="text-[10px] font-bold text-indigo-600 mt-0.5">EN Version</div>
+        </div>
+        <div class="bg-emerald-50 rounded-xl p-3 text-center">
+          <div class="text-xl font-headline font-black text-emerald-600">${valOk}</div>
+          <div class="text-[10px] font-bold text-emerald-600 mt-0.5">${t("data.integrity.ok")}</div>
         </div>
         <div class="bg-amber-50 rounded-xl p-3 text-center">
-          <div class="text-xl font-headline font-black text-amber-700">${s.done}</div>
-          <div class="text-[10px] font-bold text-amber-600 mt-0.5">สำเร็จแล้ว</div>
+          <div class="text-xl font-headline font-black text-amber-600">${valWarn}</div>
+          <div class="text-[10px] font-bold text-amber-600 mt-0.5">${t("data.integrity.warning")}</div>
         </div>
-        <div class="bg-gray-50 rounded-xl p-3 text-center">
-          <div class="text-xl font-headline font-black text-gray-700">${s.pend}</div>
-          <div class="text-[10px] font-bold text-gray-500 mt-0.5">รอดำเนินการ</div>
+        <div class="bg-red-50 rounded-xl p-3 text-center">
+          <div class="text-xl font-headline font-black text-red-600">${valErr}</div>
+          <div class="text-[10px] font-bold text-red-600 mt-0.5">${t("data.integrity.error")}</div>
         </div>
       </div>
+      ${statusMismatchCount > 0 || missingEnCount > 0 ? `<div class="flex flex-wrap gap-2 mt-2">
+        ${statusMismatchCount > 0 ? `<div class="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+          <span class="material-symbols-outlined text-red-500" style="font-size:14px">error</span>
+          <span class="text-[10px] font-bold text-red-700">${statusMismatchCount} ${t('admin.mismatch.alert')}</span>
+        </div>` : ''}
+        ${missingEnCount > 0 ? `<div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <span class="material-symbols-outlined text-amber-500" style="font-size:14px">translate</span>
+          <span class="text-[10px] font-bold text-amber-700">${missingEnCount} ${t('admin.missing.en')}</span>
+        </div>` : ''}
+      </div>` : ''}
+      <div class="flex items-center gap-2 text-[10px] text-on-surface-variant">
+        <span class="material-symbols-outlined" style="font-size:14px">schedule</span>
+        ${t("sync.lastSynced")}: ${lastSync}
+      </div>
       <div class="flex gap-2 flex-wrap">
-        <button onclick="refreshDriveData()" class="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-200">
+        <button id="refreshBtn" onclick="refreshDriveData()" class="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-200">
           <span class="material-symbols-outlined text-sm">refresh</span>${t("refresh.btn")}
         </button>
-        <button onclick="refreshDriveData()" class="flex items-center gap-1.5 text-xs font-bold text-river-blue bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
-          <span class="material-symbols-outlined text-sm">cloud_sync</span>สแกน Drive ใหม่
+        <button onclick="adminAutoDiscover()" class="flex items-center gap-1.5 text-xs font-bold text-river-blue bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
+          <span class="material-symbols-outlined text-sm">manage_search</span>${t("admin.autoDiscover")}
         </button>
+        <button onclick="adminLockAll()" class="flex items-center gap-1.5 text-xs font-bold text-deep-teak bg-amber-50 px-4 py-2 rounded-xl hover:bg-amber-100 transition-colors border border-amber-200">
+          <span class="material-symbols-outlined text-sm">lock</span>${t("admin.lockAll")}
+        </button>
+        <button onclick="exportMappingManifest()" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-gray-50 px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors border border-gray-200">
+          <span class="material-symbols-outlined text-sm">download</span>${t("admin.exportMapping")}
+        </button>
+        <label class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-gray-50 px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">upload</span>${t("admin.importMapping")}
+          <input type="file" accept=".json" class="hidden" onchange="adminImportMapping(this)">
+        </label>
       </div>
     </div>
 
@@ -661,46 +797,222 @@ function renderAdmin() {
       ${renderQuotaCard()}
     </div>
 
-    <!-- Content Status -->
-    <div class="bg-amber-50 border border-amber-200/50 p-6 rounded-2xl space-y-3">
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-amber-600">edit_note</span>
-        <h3 class="text-sm font-headline font-extrabold text-amber-800">${t("content.status.title")}</h3>
-        <span class="ml-auto px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">${t("content.status.preparing")}</span>
-      </div>
-      <p class="text-xs text-amber-700 leading-relaxed font-thai">${t("content.status.en_version")}</p>
-      <p class="text-[10px] text-amber-600 leading-relaxed font-thai">${t("content.status.auto_update")}</p>
-    </div>
+    <!-- Mapping Change Alert -->
+    <div id="mapping-change-alert"></div>
 
-    <!-- Drive Folder Map -->
+    <!-- Data Integrity Debug Table -->
     <div class="bg-white rounded-2xl p-6 space-y-4">
       <div class="flex items-center gap-2 mb-1">
-        <span class="material-symbols-outlined text-deep-teak">folder_open</span>
-        <h2 class="font-headline font-bold text-on-surface">แผนผังโฟลเดอร์ Drive</h2>
+        <span class="material-symbols-outlined text-deep-teak">bug_report</span>
+        <h2 class="font-headline font-bold text-on-surface">${t("admin.debug.title")}</h2>
+        <span class="ml-auto text-[10px] text-on-surface-variant">${t("admin.debug.subtitle")}</span>
       </div>
-      <div class="space-y-2">
-        ${typeof driveFolderMap !== 'undefined' && Object.keys(driveFolderMap).length > 0
-          ? Object.entries(driveFolderMap).map(([catId, folderId]) => {
-              const cat = CATS.find(c => c.id === parseInt(catId));
-              const catLabel = cat ? (L === 'en' ? cat.en : cat.n) : 'หมวด ' + catId;
-              const mappedInCat = Object.entries(driveStatusMap).filter(([id]) => {
-                const row = D.find(d => d[0] === parseInt(id));
-                return row && row[1] === parseInt(catId);
-              }).length;
-              return `<div class="flex items-center gap-3 p-3 rounded-xl bg-emerald-50">
-                <span class="material-symbols-outlined text-emerald-600 text-lg">folder</span>
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-bold text-on-surface">${catLabel}</p>
-                  <p class="text-[10px] text-on-surface-variant truncate font-mono">${folderId}</p>
-                </div>
-                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${mappedInCat} ตัวชี้วัด</span>
-              </div>`;
-            }).join('')
-          : '<p class="text-xs text-on-surface-variant font-thai">ยังไม่มีข้อมูลโฟลเดอร์ — กด "เชื่อมต่อ Drive ใหม่"</p>'
-        }
+      <div class="overflow-x-auto -mx-6 px-6">
+        <table class="w-full text-[11px] border-collapse">
+          <thead>
+            <tr class="border-b-2 border-outline-variant/20 text-left">
+              <th class="py-2 px-2 font-bold text-on-surface-variant">#</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.indicator')}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">Folder ID</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">TH</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">EN</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.subfolders')}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t('admin.depth')}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t('admin.status.header')}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t("admin.debug.validation")}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">${t("sync.lastSynced")}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.lock.header')}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/5">
+            ${renderAdminDebugRows(mapping, syncState, L)}
+          </tbody>
+        </table>
       </div>
     </div>
+
+    ${syncErrors.length > 0 ? `
+    <!-- Sync Error Log -->
+    <div class="bg-red-50 border border-red-200 rounded-2xl p-6 space-y-3">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-red-600">error_outline</span>
+        <h3 class="text-sm font-headline font-extrabold text-red-800">${t("admin.debug.errorLog")} (${syncErrors.length})</h3>
+      </div>
+      <div class="space-y-1 max-h-48 overflow-y-auto">
+        ${syncErrors.map(e => `<div class="text-[10px] text-red-700 font-mono bg-white/50 px-3 py-1.5 rounded-lg">
+          <span class="font-bold">#${e.indicatorId || "?"}</span> ${e.lang ? `[${e.lang.toUpperCase()}]` : ""} ${e.message}
+        </div>`).join("")}
+      </div>
+    </div>` : ""}
   </div>`;
+}
+
+// === ADMIN DEBUG TABLE ROWS ===
+function renderAdminDebugRows(mapping, syncState, L) {
+  let rows = "";
+  for (let i = 1; i <= 84; i++) {
+    const m = mapping[i] || {};
+    const se = syncState[i] || {};
+    const cat = CATS.find(c => c.id === (m.cat || (D[i - 1] ? D[i - 1][1] : 0)));
+    const indicator = D[i - 1];
+    const title = indicator ? (indicator[3] || "").substring(0, 25) : "—";
+
+    const fId = m.folderId ? m.folderId.substring(0, 12) + "…" : "—";
+    const thFiles = se.thFileCount !== undefined ? se.thFileCount : "—";
+    const enFiles = se.enFileCount !== undefined ? se.enFileCount : "—";
+    const hasEn = se.hasEnglishVersion || m.hasEnglishVersion;
+    const depth = se.thDepth !== undefined ? se.thDepth : "—";
+    const vStatus = se.validationStatus || (m.folderId ? "unknown" : "error");
+    const lastSync = se.lastSyncedAt ? new Date(se.lastSyncedAt).toLocaleTimeString(L === "en" ? "en-US" : "th-TH", { hour: "2-digit", minute: "2-digit" }) : "—";
+    const isLocked = !!m.locked;
+
+    // Subfolder info
+    const subfolderNames = se.subfolderNames || [];
+    const subfolderFileCount = se.subfolderFileCount || {};
+    const subfolderDisplay = subfolderNames.length > 0
+      ? subfolderNames.map(n => `<span class="inline-block bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[9px] mr-0.5 mb-0.5" title="${n}: ${subfolderFileCount[n] || 0} files">${n.substring(0, 15)}${n.length > 15 ? "…" : ""} (${subfolderFileCount[n] || 0})</span>`).join("")
+      : '<span class="text-gray-400">—</span>';
+
+    // Auto-status calculation for mismatch detection
+    const curL = typeof getLang === "function" ? getLang() : "th";
+    const langFileCount = curL === "en" ? (se.enFileCount || 0) : (se.thFileCount || 0);
+    const autoSt = langFileCount > 0 ? "c" : "w";
+    const indicatorItem = getIndicators().find(x => x.id === i);
+    const currentSt = indicatorItem ? indicatorItem.status : (indicator ? indicator[6] : "w");
+    const isOverridden = indicatorItem ? indicatorItem.statusOverridden : false;
+    const statusMismatch = currentSt !== autoSt;
+    const stLabels = { c: "✓", p: "◑", w: "○" };
+
+    const vIcon = vStatus === "ok" ? "verified" : vStatus === "warning" ? "warning" : vStatus === "error" ? "error" : "help";
+    const vColor = vStatus === "ok" ? "text-emerald-600" : vStatus === "warning" ? "text-amber-500" : vStatus === "error" ? "text-red-500" : "text-gray-400";
+    const vBg = vStatus === "ok" ? "bg-emerald-50" : vStatus === "warning" ? "bg-amber-50" : vStatus === "error" ? "bg-red-50" : "bg-gray-50";
+    const rowBg = statusMismatch ? "bg-red-50/30" : vStatus === "error" ? "bg-red-50/20" : "";
+
+    rows += `<tr class="${rowBg} hover:bg-surface-container-low/30 transition-colors">
+      <td class="py-1.5 px-2"><span class="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold" style="background:${cat ? cat.cl : "#888"}">${i}</span></td>
+      <td class="py-1.5 px-2 max-w-[120px]"><span class="truncate block" title="${title}">${title}</span></td>
+      <td class="py-1.5 px-2 font-mono text-[10px] ${m.folderId ? "text-on-surface" : "text-red-400"}" title="${m.folderId || ""}">${fId}</td>
+      <td class="py-1.5 px-2 text-center font-bold ${thFiles > 0 ? "text-river-blue" : "text-red-400"}">${thFiles}</td>
+      <td class="py-1.5 px-2 text-center font-bold ${enFiles > 0 ? "text-river-blue" : "text-gray-400"}">${enFiles}${hasEn ? ' <span class="text-[8px] text-blue-500">✓</span>' : ''}</td>
+      <td class="py-1.5 px-2 max-w-[180px]"><div class="flex flex-wrap">${subfolderDisplay}</div></td>
+      <td class="py-1.5 px-2 text-center text-on-surface-variant">${depth}</td>
+      <td class="py-1.5 px-2 text-center">
+        <span class="inline-flex items-center gap-0.5 ${statusMismatch ? "text-red-600 bg-red-50" : "text-on-surface bg-gray-50"} px-1.5 py-0.5 rounded-full" title="${statusMismatch ? "Mismatch: current=" + currentSt + " auto=" + autoSt : "OK"}">
+          <span class="text-[9px] font-bold">${stLabels[currentSt] || "?"}→${stLabels[autoSt] || "?"}</span>
+          ${isOverridden ? '<span class="text-[8px] text-amber-500">⚑</span>' : ''}
+          ${statusMismatch ? '<span class="material-symbols-outlined text-red-500" style="font-size:10px">error</span>' : ''}
+        </span>
+      </td>
+      <td class="py-1.5 px-2 text-center"><span class="inline-flex items-center gap-0.5 ${vColor} ${vBg} px-1.5 py-0.5 rounded-full" title="${(se.validationIssues || []).join('; ')}"><span class="material-symbols-outlined" style="font-size:11px">${vIcon}</span></span></td>
+      <td class="py-1.5 px-2 text-on-surface-variant">${lastSync}</td>
+      <td class="py-1.5 px-2 text-center">${isLocked
+        ? `<span class="material-symbols-outlined text-emerald-600" style="font-size:14px" title="Locked: ${m.locked}">lock</span>`
+        : `<span class="material-symbols-outlined text-gray-400" style="font-size:14px" title="Unlocked">lock_open</span>`}</td>
+    </tr>`;
+  }
+  return rows;
+}
+
+// === ADMIN ACTION FUNCTIONS ===
+async function adminAutoDiscover() {
+  if (!driveReady) { showToast(t('drive.not.connected')); return; }
+  showToast(t('drive.scanning'));
+  try {
+    const discovery = await autoDiscoverMapping();
+    window._pendingMappingChanges = discovery;
+    if (discovery.changes.length > 0 || discovery.newFolders.length > 0 || discovery.missingFolders.length > 0) {
+      renderMappingChangeAlert(discovery);
+    } else {
+      // No changes — just lock what we found
+      lockMapping(discovery.mapping);
+      showToast(`${t('audit.verified')}: ${Object.keys(discovery.mapping).length} ${t('audit.indicator')}`);
+    }
+    render();
+  } catch (e) {
+    showToast("Error: " + e.message);
+  }
+}
+
+function adminLockAll() {
+  const mapping = typeof loadMapping === "function" ? loadMapping() : {};
+  if (Object.keys(mapping).length === 0) {
+    showToast(t('drive.no.mapping'));
+    return;
+  }
+  lockMapping(mapping);
+  showToast(`${t('admin.lock.header')} ${Object.keys(mapping).length} mappings`);
+  render();
+}
+
+function adminImportMapping(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const result = importMappingManifest(e.target.result);
+    if (result.ok) {
+      showToast(`Import: ${result.count} mappings`);
+      render();
+    } else {
+      showToast("Import error: " + result.error);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// === MAPPING CHANGE ALERT ===
+function renderMappingChangeAlert(discovery) {
+  const el = document.getElementById("mapping-change-alert");
+  if (!el) return;
+  const L = getLang();
+  const { changes, newFolders, missingFolders } = discovery;
+
+  let html = `<div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 space-y-4">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-amber-600 text-xl">warning</span>
+      <h3 class="text-sm font-headline font-extrabold text-amber-800">${t("mapping.alert.title")}</h3>
+    </div>`;
+
+  if (changes.length > 0) {
+    html += `<div class="space-y-1">
+      <p class="text-xs font-bold text-amber-800">${t("mapping.alert.changed")} (${changes.length}):</p>
+      ${changes.map(c => `<div class="text-[10px] bg-white/60 rounded-lg px-3 py-1.5 flex items-center gap-2">
+        <span class="font-bold text-amber-700">#${c.indicatorId}</span>
+        <span class="text-on-surface-variant">[${c.field.toUpperCase()}]</span>
+        <span class="font-mono text-red-500 line-through">${(c.oldValue || "").substring(0, 10)}…</span>
+        <span class="material-symbols-outlined text-[10px]">arrow_forward</span>
+        <span class="font-mono text-emerald-600">${(c.newValue || "").substring(0, 10)}…</span>
+      </div>`).join("")}
+    </div>`;
+  }
+
+  if (newFolders.length > 0) {
+    html += `<p class="text-xs text-emerald-700"><span class="font-bold">${t('admin.new.found')}:</span> ${newFolders.map(f => `#${f.indicatorId}`).join(", ")}</p>`;
+  }
+
+  if (missingFolders.length > 0) {
+    html += `<p class="text-xs text-red-700"><span class="font-bold">${t('admin.missing.folder')}:</span> ${missingFolders.map(f => `#${f.indicatorId}`).join(", ")}</p>`;
+  }
+
+  html += `<div class="flex gap-2">
+    <button onclick="adminApplyChanges()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-4 py-2 rounded-xl hover:bg-emerald-700 transition-colors">
+      <span class="material-symbols-outlined text-sm">check</span>${t("mapping.alert.apply")}
+    </button>
+    <button onclick="document.getElementById('mapping-change-alert').innerHTML=''" class="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-white px-4 py-2 rounded-xl border border-outline-variant/20 hover:bg-gray-50 transition-colors">
+      <span class="material-symbols-outlined text-sm">close</span>${t('admin.dismiss')}
+    </button>
+  </div></div>`;
+
+  el.innerHTML = html;
+}
+
+function adminApplyChanges() {
+  if (!window._pendingMappingChanges) return;
+  lockMapping(window._pendingMappingChanges.mapping);
+  window._pendingMappingChanges = null;
+  document.getElementById("mapping-change-alert").innerHTML = "";
+  showToast(t('drive.mapping.applied'));
+  render();
 }
 
 // === SUBMIT MODAL ===
@@ -734,7 +1046,7 @@ function openSubmitModal() {
           <span class="material-symbols-outlined text-3xl ${ready ? 'text-emerald-600' : 'text-amber-500'}">${ready ? 'check_circle' : 'warning'}</span>
           <div>
             <p class="text-sm font-bold ${ready ? 'text-emerald-800' : 'text-amber-800'}">${ready ? t('submit.ready') : t('submit.not_ready')}</p>
-            <p class="text-xs ${ready ? 'text-emerald-600' : 'text-amber-600'} font-thai">${s.done} / ${s.total} ${L === 'en' ? 'indicators completed' : 'ตัวชี้วัดสำเร็จแล้ว'} — ${pct}%</p>
+            <p class="text-xs ${ready ? 'text-emerald-600' : 'text-amber-600'} font-thai">${s.done} / ${s.total} ${t('submit.indicators.completed')} — ${pct}%</p>
           </div>
         </div>
         <div class="space-y-2 text-sm text-on-surface-variant font-thai">
@@ -745,29 +1057,29 @@ function openSubmitModal() {
         <details class="group rounded-xl border border-outline-variant/20 overflow-hidden">
           <summary class="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-surface-container-low transition-colors text-xs font-bold text-on-surface">
             <span class="material-symbols-outlined text-sm text-river-blue">help</span>
-            ${L === 'en' ? 'What happens after I confirm?' : 'หลังกดยืนยันแล้วจะเกิดอะไรขึ้น?'}
+            ${t('submit.workflow.title')}
             <span class="material-symbols-outlined text-sm ml-auto group-open:rotate-180 transition-transform">expand_more</span>
           </summary>
           <div class="px-4 pb-4 space-y-2.5 border-t border-outline-variant/10 pt-3">
             <div class="flex gap-3 items-start">
               <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">1</span>
-              <div><p class="text-xs font-bold text-on-surface">${L === 'en' ? 'Snapshot Saved' : 'บันทึก Snapshot'}</p><p class="text-[11px] text-on-surface-variant">${L === 'en' ? 'Current progress and all evidence files are recorded as a submission snapshot in localStorage.' : 'สถานะปัจจุบันและไฟล์หลักฐานทั้งหมดจะถูกบันทึกเป็น snapshot ลงใน localStorage'}</p></div>
+              <div><p class="text-xs font-bold text-on-surface">${t('submit.step1.title')}</p><p class="text-[11px] text-on-surface-variant">${t('submit.step1.desc')}</p></div>
             </div>
             <div class="flex gap-3 items-start">
               <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">2</span>
-              <div><p class="text-xs font-bold text-on-surface">${L === 'en' ? 'Status Locked' : 'ล็อกสถานะ'}</p><p class="text-[11px] text-on-surface-variant">${L === 'en' ? 'Indicator statuses are frozen at submission time. You can still view but not change data.' : 'สถานะตัวชี้วัดจะถูกตรึงไว้ ณ เวลาที่ส่ง ยังคงดูข้อมูลได้แต่ไม่สามารถแก้ไขได้'}</p></div>
+              <div><p class="text-xs font-bold text-on-surface">${t('submit.step2.title')}</p><p class="text-[11px] text-on-surface-variant">${t('submit.step2.desc')}</p></div>
             </div>
             <div class="flex gap-3 items-start">
               <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">3</span>
-              <div><p class="text-xs font-bold text-on-surface">${L === 'en' ? 'Ready for Audit' : 'พร้อมให้ตรวจประเมิน'}</p><p class="text-[11px] text-on-surface-variant">${L === 'en' ? 'The portfolio dashboard enters read-only mode for the Green Destinations evaluation committee.' : 'แดชบอร์ดจะเข้าสู่โหมดอ่านอย่างเดียวสำหรับคณะกรรมการตรวจประเมิน Green Destinations'}</p></div>
+              <div><p class="text-xs font-bold text-on-surface">${t('submit.step3.title')}</p><p class="text-[11px] text-on-surface-variant">${t('submit.step3.desc')}</p></div>
             </div>
             <div class="flex gap-3 items-start">
               <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">4</span>
-              <div><p class="text-xs font-bold text-on-surface">${L === 'en' ? 'Auditor Feedback' : 'ข้อเสนอแนะจากกรรมการ'}</p><p class="text-[11px] text-on-surface-variant">${L === 'en' ? 'Evaluators review each indicator, rate compliance (1-5), and record feedback in the system.' : 'กรรมการตรวจแต่ละตัวชี้วัด ให้คะแนนความสอดคล้อง (1-5) และบันทึกข้อเสนอแนะในระบบ'}</p></div>
+              <div><p class="text-xs font-bold text-on-surface">${t('submit.step4.title')}</p><p class="text-[11px] text-on-surface-variant">${t('submit.step4.desc')}</p></div>
             </div>
             <div class="flex gap-3 items-start">
               <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">5</span>
-              <div><p class="text-xs font-bold text-on-surface">${L === 'en' ? 'Final Result' : 'ผลการประเมิน'}</p><p class="text-[11px] text-on-surface-variant">${L === 'en' ? 'Results are announced by Green Destinations. If certified, Uthai Thani enters the Top 100 list.' : 'Green Destinations ประกาศผล หากผ่านการรับรอง อุทัยธานีจะเข้าสู่ Top 100 อย่างเป็นทางการ'}</p></div>
+              <div><p class="text-xs font-bold text-on-surface">${t('submit.step5.title')}</p><p class="text-[11px] text-on-surface-variant">${t('submit.step5.desc')}</p></div>
             </div>
           </div>
         </details>
@@ -779,7 +1091,7 @@ function openSubmitModal() {
         </div>
       </div>
     </div>`;
-  document.onkeydown = function(e) {
+  document.onkeydown = function (e) {
     if (e.key === "Escape") closeSubmitModal();
   };
 }
@@ -801,14 +1113,12 @@ function confirmSubmit() {
     driveConnected: typeof driveReady !== 'undefined' && driveReady,
     mappedFolders: typeof driveFolderMap !== 'undefined' ? Object.keys(driveFolderMap).length : 0
   };
-  try { localStorage.setItem('84submit', JSON.stringify(snapshot)); } catch(e) {}
+  try { localStorage.setItem('84submit', JSON.stringify(snapshot)); } catch (e) { }
   closeSubmitModal();
   showToast(t('submit.toast'));
   // Show confirmation detail
   setTimeout(() => {
-    showToast(L === 'en'
-      ? `Snapshot: ${s.done}/${s.total} completed, ${snapshot.feedbackCount} feedback recorded`
-      : `Snapshot: ${s.done}/${s.total} สำเร็จ, ${snapshot.feedbackCount} ข้อเสนอแนะ`);
+    showToast(t('submit.snapshot.detail').replace('{done}', s.done).replace('{total}', s.total).replace('{fb}', snapshot.feedbackCount));
   }, 2000);
 }
 
@@ -817,8 +1127,8 @@ function renderStatusGuide(collapsed) {
   const L = getLang();
   const items = [
     { key: "c", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500", titleColor: "text-emerald-800", descColor: "text-emerald-700", needsColor: "text-emerald-600", needsBg: "bg-emerald-100" },
-    { key: "p", bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-500",   titleColor: "text-amber-800",   descColor: "text-amber-700",   needsColor: "text-amber-600",   needsBg: "bg-amber-100"   },
-    { key: "w", bg: "bg-gray-50",    border: "border-gray-200",    dot: "bg-gray-400",    titleColor: "text-gray-800",    descColor: "text-gray-600",    needsColor: "text-gray-500",    needsBg: "bg-gray-100"    },
+    { key: "p", bg: "bg-amber-50", border: "border-amber-200", dot: "bg-amber-500", titleColor: "text-amber-800", descColor: "text-amber-700", needsColor: "text-amber-600", needsBg: "bg-amber-100" },
+    { key: "w", bg: "bg-gray-50", border: "border-gray-200", dot: "bg-gray-400", titleColor: "text-gray-800", descColor: "text-gray-600", needsColor: "text-gray-500", needsBg: "bg-gray-100" },
   ];
   if (collapsed) {
     return `<div class="flex flex-wrap gap-2">
@@ -864,9 +1174,9 @@ function renderStatusGuide(collapsed) {
 // === VIEW SWITCHER HTML ===
 function viewSwitcherHTML() {
   const views = [
-    { id: "grid",  icon: "grid_view",   label: t("view.grid")  },
-    { id: "list",  icon: "view_agenda", label: t("view.list")  },
-    { id: "table", icon: "table_rows",  label: t("view.table") },
+    { id: "grid", icon: "grid_view", label: t("view.grid") },
+    { id: "list", icon: "view_agenda", label: t("view.list") },
+    { id: "table", icon: "table_rows", label: t("view.table") },
   ];
   return `<div class="flex items-center gap-0.5 bg-surface-container-low rounded-xl p-1">
     ${views.map(v => `<button onclick="setCatalogView('${v.id}')" title="${v.label}"
@@ -877,20 +1187,52 @@ function viewSwitcherHTML() {
   </div>`;
 }
 
+// === DATA INTEGRITY BADGE ===
+function dataIntegrityBadge(item, size = "sm") {
+  const di = item.dataIntegrity;
+  const isAdmin = typeof adminUnlocked !== "undefined" && adminUnlocked;
+  // Public: show icon only, no technical details in tooltip
+  // Admin: show full details including validation issues
+  const adminTip = isAdmin ? item.dataIssues.join('; ') : '';
+  if (di === "ok") {
+    return size === "lg"
+      ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full" ${adminTip ? `title="${adminTip}"` : ''}><span class="material-symbols-outlined" style="font-size:12px">verified</span>${t("data.integrity.ok")}</span>`
+      : `<span class="inline-flex items-center gap-0.5 text-emerald-600"><span class="material-symbols-outlined" style="font-size:10px">verified</span></span>`;
+  }
+  if (di === "warning") {
+    return size === "lg"
+      ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full" ${adminTip ? `title="${adminTip}"` : ''}><span class="material-symbols-outlined" style="font-size:12px">warning</span>${t("data.integrity.warning")}</span>`
+      : `<span class="inline-flex items-center gap-0.5 text-amber-500" ${adminTip ? `title="${adminTip}"` : ''}><span class="material-symbols-outlined" style="font-size:10px">warning</span></span>`;
+  }
+  if (di === "error") {
+    return size === "lg"
+      ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full" ${adminTip ? `title="${adminTip}"` : ''}><span class="material-symbols-outlined" style="font-size:12px">error</span>${isAdmin ? t("data.integrity.error") : ''}</span>`
+      : `<span class="inline-flex items-center gap-0.5 text-red-500" ${adminTip ? `title="${adminTip}"` : ''}><span class="material-symbols-outlined" style="font-size:10px">error</span></span>`;
+  }
+  // unknown
+  return size === "lg"
+    ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full"><span class="material-symbols-outlined" style="font-size:12px">help</span>${isAdmin ? t("data.integrity.unknown") : ''}</span>`
+    : `<span class="inline-flex items-center gap-0.5 text-gray-400"><span class="material-symbols-outlined" style="font-size:10px">help</span></span>`;
+}
+
 // === CATALOG ITEM RENDERERS ===
 function renderCatalogItemGrid(i, cat, st, L) {
-  const isMismatch = i.validationMatch === 'mismatch';
+  const isAdmin = typeof adminUnlocked !== "undefined" && adminUnlocked;
+  const isMismatch = isAdmin && (i.validationMatch === 'mismatch' || i.validationMatch === 'override_mismatch');
   const borderClass = isMismatch ? "border-2 border-error/50" : "border border-transparent";
-  const warningBadge = isMismatch ? `<span class="absolute -top-2 -right-2 bg-error text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md animate-pulse" title="Mismatch: Admin marked Complete/Progress but 0 files"><span class="material-symbols-outlined text-[14px]">error</span></span>` : "";
+  const warningBadge = isMismatch ? `<span class="absolute -top-2 -right-2 bg-error text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md animate-pulse" title="Status mismatch detected"><span class="material-symbols-outlined text-[14px]">error</span></span>` : "";
 
   return `<div class="bg-white p-5 rounded-2xl hover:translate-y-[-2px] transition-all cursor-pointer group shadow-sm ${borderClass} relative" onclick="navigate('detail',{id:${i.id}})">
     ${warningBadge}
     <div class="flex items-start justify-between mb-3">
       <div class="flex items-center space-x-2">
         <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:${cat.cl}">${i.id}</span>
-        <span class="text-[10px] text-on-surface-variant font-bold">${(L === "en" ? cat.en : cat.n).substring(0, 12)}</span>
+        <span class="text-[10px] text-on-surface-variant font-bold">${catName(cat.id).substring(0, 12)}</span>
       </div>
-      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span>
+      <div class="flex items-center gap-1">
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span>
+        ${dataIntegrityBadge(i)}
+      </div>
     </div>
     <h3 class="font-headline font-bold text-sm text-on-surface mb-2 group-hover:text-emerald-forest transition-colors leading-snug">${i.title}</h3>
     <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">${i.desc}</p>
@@ -903,7 +1245,8 @@ function renderCatalogItemGrid(i, cat, st, L) {
 }
 
 function renderCatalogItemList(i, cat, st, L) {
-  const isMismatch = i.validationMatch === 'mismatch';
+  const isAdmin = typeof adminUnlocked !== "undefined" && adminUnlocked;
+  const isMismatch = isAdmin && (i.validationMatch === 'mismatch' || i.validationMatch === 'override_mismatch');
   const borderClass = isMismatch ? "border-l-4 border-error" : "border-l-4 border-transparent";
   return `<div class="bg-white px-4 py-3.5 rounded-xl flex items-center gap-3 hover:shadow-sm transition-all cursor-pointer group ${borderClass}" onclick="navigate('detail',{id:${i.id}})">
     <span class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:${cat.cl}">${i.id}</span>
@@ -911,9 +1254,10 @@ function renderCatalogItemList(i, cat, st, L) {
       <div class="flex items-center gap-2 flex-wrap">
         <h3 class="font-bold text-sm text-on-surface group-hover:text-emerald-forest transition-colors leading-snug">${i.title}</h3>
         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${st.cls}">${st.label}</span>
-        ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error">error</span><span class="text-[10px] text-error font-bold">Mismatch: No files</span>` : ""}
+        ${dataIntegrityBadge(i)}
+        ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error">error</span><span class="text-[10px] text-error font-bold">${t('mismatch.label')}</span>` : ""}
       </div>
-      <p class="text-xs text-on-surface-variant mt-0.5 truncate">${(L === "en" ? cat.en : cat.n)} \u00b7 ${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</p>
+      <p class="text-xs text-on-surface-variant mt-0.5 truncate">${catName(cat.id)} \u00b7 ${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</p>
     </div>
     <div class="flex items-center gap-2 flex-shrink-0">
       ${i.filesCount !== null ? `<span class="text-[10px] ${i.filesCount > 0 ? "bg-blue-50 text-river-blue" : "bg-red-50 text-error border border-red-200"} px-2 py-0.5 rounded-full font-bold">${i.filesCount} ${t("cat.files")}</span>` : ""}
@@ -929,34 +1273,35 @@ function renderCatalogItemTable(items, L) {
         <thead>
           <tr class="border-b border-outline-variant/10">
             <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant w-10">#</th>
-            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant">${L === "en" ? "Indicator" : "ตัวชี้วัด"}</th>
-            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden md:table-cell">${L === "en" ? "Category" : "หมวด"}</th>
-            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden lg:table-cell">${L === "en" ? "Agency" : "หน่วยงาน"}</th>
-            <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant">${L === "en" ? "Files" : "ไฟล์"}</th>
-            <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant">${L === "en" ? "Status" : "สถานะ"}</th>
+            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant">${t('cat.indicator')}</th>
+            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden md:table-cell">${t('cat.category')}</th>
+            <th class="text-left py-3 px-4 text-xs font-bold text-on-surface-variant hidden lg:table-cell">${t('cat.agency')}</th>
+            <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant">${t('cat.files.header')}</th>
+            <th class="text-center py-3 px-4 text-xs font-bold text-on-surface-variant">${t('cat.status.header')}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/5">
           ${items.map(i => {
-            const cat = CATS.find(c => c.id === i.cat);
-            const st = STATUS_MAP[i.status];
-            const fileCount = i.filesCount;
-            const isMismatch = i.validationMatch === 'mismatch';
-            return `<tr class="hover:bg-surface-container-low/40 cursor-pointer transition-colors ${isMismatch ? "bg-red-50/50" : ""}" onclick="navigate('detail',{id:${i.id}})">
+    const cat = CATS.find(c => c.id === i.cat);
+    const st = STATUS_MAP[i.status];
+    const fileCount = i.filesCount;
+    const isAdm = typeof adminUnlocked !== "undefined" && adminUnlocked;
+    const isMismatch = isAdm && (i.validationMatch === 'mismatch' || i.validationMatch === 'override_mismatch');
+    return `<tr class="hover:bg-surface-container-low/40 cursor-pointer transition-colors ${isMismatch ? "bg-red-50/50" : ""}" onclick="navigate('detail',{id:${i.id}})">
               <td class="py-2.5 px-4"><span class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style="background:${cat.cl}">${i.id}</span></td>
               <td class="py-2.5 px-4 font-medium text-on-surface max-w-xs">
                 <div class="flex items-center gap-2">
                   <p class="truncate">${i.title}</p>
-                  ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error flex-shrink-0" title="Mismatch">error</span>` : ""}
+                  ${isMismatch ? `<span class="material-symbols-outlined text-[14px] text-error flex-shrink-0" title="Status mismatch">error</span>` : ""}
                 </div>
                 <p class="text-[10px] text-on-surface-variant truncate">${i.desc.substring(0, 60)}…</p>
               </td>
-              <td class="py-2.5 px-4 hidden md:table-cell text-xs text-on-surface-variant">${(L === "en" ? cat.en : cat.n).substring(0, 16)}</td>
+              <td class="py-2.5 px-4 hidden md:table-cell text-xs text-on-surface-variant">${catName(cat.id).substring(0, 16)}</td>
               <td class="py-2.5 px-4 hidden lg:table-cell text-xs text-on-surface-variant">${i.agencies[0]}${i.agencies.length > 1 ? ` +${i.agencies.length - 1}` : ""}</td>
               <td class="py-2.5 px-4 text-center text-xs ${fileCount > 0 ? "text-river-blue font-bold" : "text-error font-bold"}">${fileCount !== null ? fileCount : "—"}</td>
-              <td class="py-2.5 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}">${st.label}</span></td>
+              <td class="py-2.5 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}">${st.label}</span> ${dataIntegrityBadge(i)}</td>
             </tr>`;
-          }).join("")}
+  }).join("")}
         </tbody>
       </table>
     </div>
@@ -978,9 +1323,9 @@ function renderCatalog() {
   return `<div data-view="catalog" class="px-4 md:px-8 py-6 max-w-7xl w-full mx-auto space-y-6">
     <div>
       <h1 class="text-2xl font-headline font-extrabold text-on-surface">
-        ${activeCat ? `<span class="material-symbols-outlined align-middle mr-1" style="color:${activeCat.cl}">${activeCat.ic}</span>${L === "en" ? activeCat.en : activeCat.n}` : t("cat.title")}
+        ${activeCat ? `<span class="material-symbols-outlined align-middle mr-1" style="color:${activeCat.cl}">${activeCat.ic}</span>${catName(activeCat.id)}` : t("cat.title")}
       </h1>
-      ${activeCat ? `<p class="text-on-surface-variant text-sm font-thai mt-1">${activeCat.loc} — ${L === "en" ? activeCat.n : activeCat.en}</p>`
+      ${activeCat ? `<p class="text-on-surface-variant text-sm font-thai mt-1">${L === "en" ? activeCat.locEn : activeCat.loc} — ${L === "en" ? activeCat.n : activeCat.en}</p>`
       : `<p class="text-on-surface-variant text-sm font-thai mt-1">${t("cat.subtitle")}</p>`}
     </div>
     ${L === "en" ? `<div class="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
@@ -990,7 +1335,7 @@ function renderCatalog() {
     <div class="space-y-2">
       <div class="filter-scroll">
         <button onclick="currentFilter.cat=0;currentFilter.status='';render()" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!currentFilter.cat && !currentFilter.status ? "bg-primary text-white" : "bg-white text-on-surface-variant hover:bg-gray-100"}">${t("cat.all")} (84)</button>
-        ${cats.map(c => `<button onclick="currentFilter.cat=${c.id};currentFilter.status='';render()" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentFilter.cat === c.id ? "text-white" : "bg-white text-on-surface-variant hover:bg-gray-100"}" style="${currentFilter.cat === c.id ? `background:${c.cl}` : ""}">${(L === "en" ? c.en : c.n).substring(0, 10)}\u2026 (${c.total})</button>`).join("")}
+        ${cats.map(c => `<button onclick="currentFilter.cat=${c.id};currentFilter.status='';render()" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentFilter.cat === c.id ? "text-white" : "bg-white text-on-surface-variant hover:bg-gray-100"}" style="${currentFilter.cat === c.id ? `background:${c.cl}` : ""}">${catName(c.id).substring(0, 10)}\u2026 (${c.total})</button>`).join("")}
       </div>
       <div class="flex gap-2 flex-wrap">
         ${["c", "p", "w"].map(st => `<button onclick="currentFilter.status=currentFilter.status==='${st}'?'':'${st}';render()" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentFilter.status === st ? STATUS_MAP[st].cls : "bg-white text-on-surface-variant hover:bg-gray-100"}">${STATUS_MAP[st].label}</button>`).join("")}
@@ -1024,10 +1369,10 @@ function renderCatalog() {
 function renderDetail() {
   const item = getIndicators().find(i => i.id === currentFilter.id);
   const L = getLang();
-  if (!item) return `<div data-view="detail" class="p-8 text-center"><p>${L === "en" ? "Indicator not found" : "ไม่พบตัวชี้วัด"}</p></div>`;
+  if (!item) return `<div data-view="detail" class="p-8 text-center"><p>${t('detail.notfound')}</p></div>`;
   const cat = CATS.find(c => c.id === item.cat);
   const st = STATUS_MAP[item.status];
-  const catLabel = L === "en" ? cat.en : cat.n;
+  const catLabel = catName(cat.id);
   const sameCategory = getIndicators().filter(i => i.cat === item.cat && i.id !== item.id).slice(0, 4);
   const prevId = item.id > 1 ? item.id - 1 : 84;
   const nextId = item.id < 84 ? item.id + 1 : 1;
@@ -1052,19 +1397,19 @@ function renderDetail() {
         </div>
         <div class="flex items-center gap-2">
           <span class="px-3 py-1 rounded-full text-xs font-bold ${st.cls}">${st.label}</span>
-          ${item.statusOverridden ? `<span class="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 font-bold">${getLang() === 'en' ? 'Overridden' : 'ปรับแล้ว'}</span>` : ''}
-          ${adminUnlocked ? `<div class="relative" id="statusChanger-${item.id}"><button onclick="document.getElementById('statusMenu-${item.id}').classList.toggle('hidden')" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors" aria-label="เปลี่ยนสถานะ" title="เปลี่ยนสถานะ"><span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span></button><div id="statusMenu-${item.id}" class="hidden absolute right-0 top-8 z-20 bg-white rounded-xl shadow-xl border border-outline-variant/20 p-1.5 min-w-[180px] space-y-0.5">${['c','p','w'].map(k => { const s2 = STATUS_MAP[k]; return `<button onclick="changeIndicatorStatus(${item.id},'${k}')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors ${item.status === k ? 'bg-surface-container-low' : ''}"><span class="w-2 h-2 rounded-full ${k === 'c' ? 'bg-emerald-500' : k === 'p' ? 'bg-amber-500' : 'bg-gray-400'}"></span>${s2.label}${item.status === k ? ' ✓' : ''}</button>`; }).join('')}${item.statusOverridden ? `<hr class="my-1 border-outline-variant/15"/><button onclick="resetIndicatorStatus(${item.id})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-error hover:bg-red-50 transition-colors"><span class="material-symbols-outlined text-sm">undo</span>${getLang() === 'en' ? 'Reset original' : 'รีเซ็ตสถานะเดิม'}</button>` : ''}</div></div>` : ''}
+          ${item.statusOverridden ? `<span class="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 font-bold">${t('audit.override.label')}</span>` : ''}
+          ${adminUnlocked ? `<div class="relative" id="statusChanger-${item.id}"><button onclick="document.getElementById('statusMenu-${item.id}').classList.toggle('hidden')" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors" aria-label="เปลี่ยนสถานะ" title="เปลี่ยนสถานะ"><span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span></button><div id="statusMenu-${item.id}" class="hidden absolute right-0 top-8 z-20 bg-white rounded-xl shadow-xl border border-outline-variant/20 p-1.5 min-w-[180px] space-y-0.5">${['c', 'p', 'w'].map(k => { const s2 = STATUS_MAP[k]; return `<button onclick="changeIndicatorStatus(${item.id},'${k}')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors ${item.status === k ? 'bg-surface-container-low' : ''}"><span class="w-2 h-2 rounded-full ${k === 'c' ? 'bg-emerald-500' : k === 'p' ? 'bg-amber-500' : 'bg-gray-400'}"></span>${s2.label}${item.status === k ? ' ✓' : ''}</button>`; }).join('')}${item.statusOverridden ? `<hr class="my-1 border-outline-variant/15"/><button onclick="resetIndicatorStatus(${item.id})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-error hover:bg-red-50 transition-colors"><span class="material-symbols-outlined text-sm">undo</span>${t('status.reset.btn')}</button>` : ''}</div></div>` : ''}
         </div>
       </div>
       <h1 class="text-2xl md:text-3xl font-headline font-extrabold text-on-surface leading-tight mb-4">${item.title}</h1>
       <div class="absolute -bottom-8 -right-8 w-32 h-32 rounded-full blur-3xl" style="background:${cat.cl}10"></div>
     </div>
     <!-- Status Criteria Card -->
-    ${(function(){
+    ${(function () {
       const cfg = {
         c: { bg: "bg-emerald-50", border: "border-emerald-200/60", icon: "check_circle", iconColor: "text-emerald-600", titleColor: "text-emerald-800", descColor: "text-emerald-700", needsBg: "bg-emerald-100", needsColor: "text-emerald-700" },
-        p: { bg: "bg-amber-50",   border: "border-amber-200/60",   icon: "pending",       iconColor: "text-amber-500",   titleColor: "text-amber-800",   descColor: "text-amber-700",   needsBg: "bg-amber-100",   needsColor: "text-amber-700"   },
-        w: { bg: "bg-gray-50",    border: "border-gray-200/60",    icon: "schedule",      iconColor: "text-gray-400",    titleColor: "text-gray-800",    descColor: "text-gray-600",    needsBg: "bg-gray-100",    needsColor: "text-gray-600"    },
+        p: { bg: "bg-amber-50", border: "border-amber-200/60", icon: "pending", iconColor: "text-amber-500", titleColor: "text-amber-800", descColor: "text-amber-700", needsBg: "bg-amber-100", needsColor: "text-amber-700" },
+        w: { bg: "bg-gray-50", border: "border-gray-200/60", icon: "schedule", iconColor: "text-gray-400", titleColor: "text-gray-800", descColor: "text-gray-600", needsBg: "bg-gray-100", needsColor: "text-gray-600" },
       };
       const c = cfg[item.status];
       const next = item.status === "w" ? t("status.guide.w2p") : item.status === "p" ? t("status.guide.p2c") : null;
@@ -1129,21 +1474,26 @@ function renderDetail() {
           <span class="material-symbols-outlined text-deep-teak">folder_open</span>
           <h2 class="font-headline font-bold text-on-surface">${t("detail.evidence.title")}</h2>
         </div>
-        <div class="flex items-center gap-1">${driveStatusHTML()}</div>
+        <div class="flex items-center gap-2">
+          ${driveStatusHTML()}
+          <button onclick="refreshSingleIndicator(${item.id})" class="flex items-center gap-1 text-[10px] font-bold text-river-blue bg-blue-50 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200" title="${t('refresh.btn')}">
+            <span class="material-symbols-outlined" style="font-size:14px">refresh</span>${t('refresh.btn')}
+          </button>
+        </div>
       </div>
       <div id="drive-evidence">${renderDriveLoading()}</div>
     </div>
     <!-- Auditor Feedback -->
-    ${(function(){
+    ${(function () {
       const L = getLang();
       const fb = getFeedback(item.id);
       const ratings = [
-        { v: "", label: L === "en" ? "— Select rating —" : "— เลือกระดับ —" },
-        { v: "5", label: L === "en" ? "5 — Fully compliant" : "5 — สอดคล้องอย่างสมบูรณ์" },
-        { v: "4", label: L === "en" ? "4 — Mostly compliant" : "4 — สอดคล้องเป็นส่วนใหญ่" },
-        { v: "3", label: L === "en" ? "3 — Partially compliant" : "3 — สอดคล้องบางส่วน" },
-        { v: "2", label: L === "en" ? "2 — Minor gaps" : "2 — มีช่องว่างเล็กน้อย" },
-        { v: "1", label: L === "en" ? "1 — Non-compliant" : "1 — ไม่สอดคล้อง" },
+        { v: "", label: t('detail.rating.select') },
+        { v: "5", label: t('detail.rating.5') },
+        { v: "4", label: t('detail.rating.4') },
+        { v: "3", label: t('detail.rating.3') },
+        { v: "2", label: t('detail.rating.2') },
+        { v: "1", label: t('detail.rating.1') },
       ];
       const ratingStars = (r) => r ? '★'.repeat(parseInt(r)) + '☆'.repeat(5 - parseInt(r)) : '';
       const ratingLabel = (r) => ratings.find(x => x.v === String(r))?.label?.split(' — ')[1] || '';
@@ -1153,52 +1503,52 @@ function renderDetail() {
             <span class="material-symbols-outlined text-purple-600" aria-hidden="true">rate_review</span>
             <h2 class="font-headline font-bold text-on-surface">${t("detail.feedback.title")}</h2>
           </div>
-          ${fb ? `<span class="text-[10px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-bold border border-purple-100">${L === "en" ? "Feedback recorded" : "มีข้อเสนอแนะแล้ว"}</span>` : ""}
+          ${fb ? `<span class="text-[10px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full font-bold border border-purple-100">${t('detail.feedback.recorded')}</span>` : ""}
         </div>
         ${fb ? `
         <div class="bg-purple-50 rounded-xl p-4 space-y-2 border border-purple-100">
-          ${fb.rating ? `<div class="flex items-center gap-2"><span class="text-amber-500 text-base tracking-wider" aria-label="${L === "en" ? "Rating" : "คะแนน"} ${fb.rating}/5">${ratingStars(fb.rating)}</span><span class="text-xs font-bold text-purple-700">${ratingLabel(fb.rating)}</span></div>` : ""}
+          ${fb.rating ? `<div class="flex items-center gap-2"><span class="text-amber-500 text-base tracking-wider" aria-label="${t('detail.feedback.rating.aria')} ${fb.rating}/5">${ratingStars(fb.rating)}</span><span class="text-xs font-bold text-purple-700">${ratingLabel(fb.rating)}</span></div>` : ""}
           <p class="text-sm text-purple-900 font-thai leading-relaxed whitespace-pre-wrap">${fb.text.replace(/</g, '&lt;')}</p>
           <div class="flex items-center justify-between pt-1">
             <p class="text-[10px] text-purple-400">${fb.author} · ${new Date(fb.ts).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}</p>
-            ${adminUnlocked ? `<button onclick="clearFeedback(${item.id})" class="text-[10px] text-error hover:underline font-bold">${L === "en" ? "Delete" : "ลบ"}</button>` : ""}
+            ${adminUnlocked ? `<button onclick="clearFeedback(${item.id})" class="text-[10px] text-error hover:underline font-bold">${t('detail.feedback.delete')}</button>` : ""}
           </div>
         </div>
         ${adminUnlocked ? `
         <details class="group">
           <summary class="text-xs font-bold text-purple-600 cursor-pointer hover:underline list-none flex items-center gap-1">
-            <span class="material-symbols-outlined text-sm">edit</span>${L === "en" ? "Edit feedback" : "แก้ไขข้อเสนอแนะ"}
+            <span class="material-symbols-outlined text-sm">edit</span>${t('detail.feedback.edit')}
           </summary>
           <div class="mt-3 space-y-3">
             <select id="feedback-rating-${item.id}" class="w-full text-sm border border-outline-variant/30 rounded-xl px-3 py-2 bg-surface focus:ring-0 focus:border-emerald-forest">
               ${ratings.map(r => `<option value="${r.v}" ${fb.rating === r.v ? "selected" : ""}>${r.label}</option>`).join("")}
             </select>
-            <textarea id="feedback-text-${item.id}" class="feedback-editor w-full border border-outline-variant/30 rounded-xl px-3 py-2.5 bg-surface focus:ring-0 focus:border-emerald-forest" placeholder="${L === "en" ? "Update feedback..." : "แก้ไขข้อเสนอแนะ..."}">${fb.text.replace(/</g, '&lt;')}</textarea>
+            <textarea id="feedback-text-${item.id}" class="feedback-editor w-full border border-outline-variant/30 rounded-xl px-3 py-2.5 bg-surface focus:ring-0 focus:border-emerald-forest" placeholder="${t('detail.feedback.update.placeholder')}">${fb.text.replace(/</g, '&lt;')}</textarea>
             <button onclick="saveFeedbackFromForm(${item.id})" class="px-4 py-2 rounded-xl text-sm font-bold text-white hover:scale-[1.02] transition-transform" style="background:linear-gradient(135deg,#6d28d9,#7c3aed)">
-              ${L === "en" ? "Save changes" : "บันทึกการแก้ไข"}
+              ${t('detail.feedback.save.changes')}
             </button>
           </div>
         </details>` : ""}
         ` : adminUnlocked ? `
         <div class="space-y-3">
           <div>
-            <label class="block text-xs font-bold text-on-surface-variant mb-1.5" for="feedback-rating-${item.id}">${L === "en" ? "Compliance rating" : "ระดับความสอดคล้อง"}</label>
+            <label class="block text-xs font-bold text-on-surface-variant mb-1.5" for="feedback-rating-${item.id}">${t('detail.feedback.compliance.label')}</label>
             <select id="feedback-rating-${item.id}" class="w-full text-sm border border-outline-variant/30 rounded-xl px-3 py-2 bg-surface focus:ring-0 focus:border-emerald-forest">
               ${ratings.map(r => `<option value="${r.v}">${r.label}</option>`).join("")}
             </select>
           </div>
           <div>
-            <label class="block text-xs font-bold text-on-surface-variant mb-1.5" for="feedback-text-${item.id}">${L === "en" ? "Feedback & recommendations" : "ข้อเสนอแนะและความคิดเห็น"}</label>
-            <textarea id="feedback-text-${item.id}" class="feedback-editor w-full border border-outline-variant/30 rounded-xl px-3 py-2.5 bg-surface focus:ring-0 focus:border-emerald-forest" placeholder="${L === "en" ? "Enter evaluation findings, gaps found, and recommended actions..." : "ระบุผลการประเมิน ช่องว่างที่พบ และแนวทางการดำเนินการแนะนำ..."}"></textarea>
+            <label class="block text-xs font-bold text-on-surface-variant mb-1.5" for="feedback-text-${item.id}">${t('detail.feedback.recommendations.label')}</label>
+            <textarea id="feedback-text-${item.id}" class="feedback-editor w-full border border-outline-variant/30 rounded-xl px-3 py-2.5 bg-surface focus:ring-0 focus:border-emerald-forest" placeholder="${t('detail.feedback.recommendations.placeholder')}"></textarea>
           </div>
           <button onclick="saveFeedbackFromForm(${item.id})" class="px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:scale-[1.02] transition-transform flex items-center gap-2" style="background:linear-gradient(135deg,#6d28d9,#7c3aed)">
-            <span class="material-symbols-outlined text-sm" aria-hidden="true">save</span>${L === "en" ? "Save feedback" : "บันทึกข้อเสนอแนะ"}
+            <span class="material-symbols-outlined text-sm" aria-hidden="true">save</span>${t('detail.feedback.save')}
           </button>
         </div>
         ` : `
         <div class="bg-surface-container-low rounded-xl p-4 flex items-center gap-3">
           <span class="material-symbols-outlined text-on-surface-variant/50" aria-hidden="true">lock</span>
-          <p class="text-sm text-on-surface-variant font-thai">${L === "en" ? "Feedback is restricted to evaluators. Please sign in as Admin to record findings." : "ข้อเสนอแนะสำหรับผู้ตรวจประเมินเท่านั้น — เข้าสู่ระบบ Admin เพื่อบันทึกผลการประเมิน"}</p>
+          <p class="text-sm text-on-surface-variant font-thai">${t('detail.feedback.locked')}</p>
         </div>
         `}
       </div>`;
@@ -1219,15 +1569,15 @@ function renderDetail() {
       <h3 class="font-headline font-bold text-on-surface text-sm">${t("detail.related.title")}</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         ${sameCategory.map(r => {
-    const rs = STATUS_MAP[r.status];
-    return `<div class="bg-white p-4 rounded-xl hover:translate-y-[-1px] transition-all cursor-pointer" onclick="navigate('detail',{id:${r.id}})">
+      const rs = STATUS_MAP[r.status];
+      return `<div class="bg-white p-4 rounded-xl hover:translate-y-[-1px] transition-all cursor-pointer" onclick="navigate('detail',{id:${r.id}})">
             <div class="flex items-center space-x-2 mb-1">
               <span class="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold" style="background:${cat.cl}">${r.id}</span>
               <span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${rs.cls}">${rs.label}</span>
             </div>
             <h4 class="text-sm font-bold text-on-surface leading-snug">${r.title}</h4>
           </div>`;
-  }).join("")}
+    }).join("")}
       </div>
     </section>`: ""}
   </div>`;
@@ -1288,7 +1638,7 @@ function renderFileSummary(files) {
   ).join("");
   const totalSize = files.reduce((s, f) => s + (parseInt(f.size) || 0), 0);
   return `<div class="flex flex-wrap items-center gap-1.5 mb-3">
-    <span class="text-xs font-bold text-on-surface">${files.length} ${L === 'en' ? 'files' : 'ไฟล์'}</span>
+    <span class="text-xs font-bold text-on-surface">${files.length} ${t('files.count')}</span>
     ${totalSize > 0 ? `<span class="text-[10px] text-on-surface-variant">(${formatFileSize(totalSize)})</span>` : ''}
     <span class="text-on-surface-variant/30">|</span>
     ${pills}
@@ -1327,20 +1677,41 @@ async function retryDrive() {
 // === MAPPING VERIFICATION ===
 function renderMappingVerification(indicatorId, catId, result) {
   const L = getLang();
+  const isAdmin = typeof adminUnlocked !== "undefined" && adminUnlocked;
   const cat = CATS.find(c => c.id === catId);
-  const catLabel = L === "en" ? cat.en : cat.n;
+  const catLabel = catName(cat.id);
   const catFolderFound = !!driveFolderMap[catId];
   const indicatorFolderFound = !!result?.matchedFolder;
   const folderName = result?.matchedFolder?.name || "—";
   const fileCount = result?.files?.length || 0;
+  const subfolderCount = result?.subfolders?.length || 0;
+  const hasEn = !!result?.hasEnglishVersion;
 
+  // PUBLIC VIEW: simplified status badges only
+  if (!isAdmin) {
+    const mapped = catFolderFound && indicatorFolderFound;
+    const statusIcon = mapped ? "check_circle" : "hourglass_empty";
+    const statusColor = mapped ? "text-emerald-600" : "text-gray-400";
+    const statusBg = mapped ? "bg-emerald-50" : "bg-gray-50";
+    const statusLabel = mapped ? t('mapping.data.connected') : t('mapping.data.awaiting');
+    return `<div class="flex items-center gap-3 p-3 rounded-xl ${statusBg}">
+      <span class="material-symbols-outlined text-lg ${statusColor}">${statusIcon}</span>
+      <div class="flex-1">
+        <p class="text-xs font-bold text-on-surface">${t("detail.breadcrumb.cat")} ${catId}: ${catLabel}</p>
+        <p class="text-[10px] text-on-surface-variant">${statusLabel}</p>
+      </div>
+      ${mapped ? `<span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ ${t("detail.mapping.matched")}</span>` : `<span class="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">${t('mapping.pending')}</span>`}
+    </div>`;
+  }
+
+  // ADMIN VIEW: full technical details
   return `<div class="space-y-3">
     <!-- Category Mapping -->
     <div class="flex items-center gap-3 p-3 rounded-xl ${catFolderFound ? "bg-emerald-50" : "bg-amber-50"}">
       <span class="material-symbols-outlined text-lg ${catFolderFound ? "text-emerald-600" : "text-amber-600"}">${catFolderFound ? "check_circle" : "warning"}</span>
       <div class="flex-1">
         <p class="text-xs font-bold text-on-surface">${t("detail.breadcrumb.cat")} ${catId}: ${catLabel}</p>
-        <p class="text-[10px] text-on-surface-variant">${catFolderFound ? (L === "en" ? "Category folder found in Drive" : "พบโฟลเดอร์หมวดใน Drive") : (L === "en" ? "Category folder NOT found in Drive" : "ไม่พบโฟลเดอร์หมวดใน Drive")}</p>
+        <p class="text-[10px] text-on-surface-variant">${catFolderFound ? t('mapping.cat.found') : t('mapping.cat.notfound')}</p>
       </div>
       ${catFolderFound ? `<span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${t("detail.mapping.matched")}</span>` : `<span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">${t("detail.mapping.notfound")}</span>`}
     </div>
@@ -1353,17 +1724,116 @@ function renderMappingVerification(indicatorId, catId, result) {
       </div>
       <div class="flex items-center gap-2">
         ${fileCount > 0 ? `<span class="text-[10px] font-bold text-river-blue bg-blue-50 px-2 py-0.5 rounded-full">${fileCount} ${t("cat.files")}</span>` : ""}
+        ${subfolderCount > 0 ? `<span class="text-[10px] font-bold text-temple-gold bg-amber-50 px-2 py-0.5 rounded-full">${subfolderCount} ${t("subfolder.count")}</span>` : ""}
         ${indicatorFolderFound ? `<span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${t("detail.mapping.matched")}</span>` : ""}
       </div>
+    </div>
+    <!-- English Version Status -->
+    <div class="flex items-center gap-3 p-3 rounded-xl ${hasEn ? "bg-blue-50" : "bg-amber-50"}">
+      <span class="material-symbols-outlined text-lg ${hasEn ? "text-blue-600" : "text-amber-500"}">${hasEn ? "translate" : "warning"}</span>
+      <div class="flex-1">
+        <p class="text-xs font-bold text-on-surface">English Version</p>
+        <p class="text-[10px] text-on-surface-variant">${hasEn ? t("subfolder.enFound") : t("subfolder.enMissing")}</p>
+      </div>
+      ${hasEn ? `<span class="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">✓</span>` : `<span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">✗</span>`}
     </div>
     <!-- Validation Note -->
     ${indicatorFolderFound ? `<div class="flex items-start gap-2 p-3 bg-blue-50 rounded-xl">
       <span class="material-symbols-outlined text-river-blue text-sm mt-0.5">info</span>
-      <p class="text-[11px] text-river-blue leading-relaxed">${L === "en"
-        ? `Files in folder "${folderName}" are mapped to Indicator #${indicatorId} in Category ${catId}. Auditors will review these files for this specific indicator.`
-        : `ไฟล์ในโฟลเดอร์ "${folderName}" ถูกจับคู่กับตัวชี้วัดข้อ ${indicatorId} หมวด ${catId} กรรมการจะตรวจประเมินไฟล์เหล่านี้สำหรับตัวชี้วัดนี้โดยเฉพาะ`}</p>
+      <p class="text-[11px] text-river-blue leading-relaxed">${t('mapping.validation.note').replace('{folder}', folderName).replace('{id}', indicatorId).replace('{cat}', catId)}</p>
     </div>` : ""}
   </div>`;
+}
+
+// === SUBFOLDER TREE RENDERER ===
+// Renders folder hierarchy preserving Drive structure. Files grouped under their subfolders.
+function renderSubfolderTree(tree, allFiles) {
+  if (!tree) return '';
+  const L = getLang();
+
+  // Build flat file index for modal navigation (ordered by subfolder)
+  const orderedFiles = [];
+  function collectFiles(node) {
+    for (const f of node.files) orderedFiles.push(f);
+    for (const child of node.children) collectFiles(child);
+  }
+  collectFiles(tree);
+  currentEvidenceFiles = orderedFiles;
+
+  // If no subfolders at all, render flat grid
+  if (tree.children.length === 0) {
+    if (tree.files.length === 0) return '';
+    return `${renderFileSummary(tree.files)}
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        ${tree.files.map((f, idx) => renderFileThumbnail(f, getFileModalIndex(orderedFiles, f))).join("")}
+      </div>`;
+  }
+
+  let html = `${renderFileSummary(orderedFiles)}`;
+
+  // Root-level files (files directly in indicator folder, not in any subfolder)
+  if (tree.files.length > 0) {
+    html += `<div class="mb-4">
+      <div class="flex items-center gap-2 mb-2 pb-1 border-b border-outline-variant/10">
+        <span class="material-symbols-outlined text-sm text-on-surface-variant">description</span>
+        <span class="text-xs font-bold text-on-surface-variant">${t('files.root')} (${tree.files.length})</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        ${tree.files.map(f => renderFileThumbnail(f, getFileModalIndex(orderedFiles, f))).join("")}
+      </div>
+    </div>`;
+  }
+
+  // Subfolders
+  for (const child of tree.children) {
+    html += renderFolderNode(child, orderedFiles, 0);
+  }
+
+  return html;
+}
+
+function renderFolderNode(node, orderedFiles, indent) {
+  const L = getLang();
+  const totalFiles = countNodeFiles(node);
+  const indentPx = indent * 16;
+  const isCollapsible = indent >= 2; // Collapse deeper than 2 levels by default
+
+  let html = `<div class="mb-3" style="margin-left:${indentPx}px">
+    <div class="flex items-center gap-2 mb-2 pb-1 border-b border-outline-variant/15 ${isCollapsible ? 'cursor-pointer' : ''}" ${isCollapsible ? `onclick="this.nextElementSibling.classList.toggle('hidden')"` : ''}>
+      <span class="material-symbols-outlined text-sm text-temple-gold">folder</span>
+      <span class="text-xs font-bold text-on-surface">${node.name}</span>
+      <span class="text-[10px] text-on-surface-variant bg-surface-container-low px-1.5 py-0.5 rounded">${totalFiles} ${t('files.count')}</span>
+      ${node._isEnglishVersion ? '<span class="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">EN</span>' : ''}
+      ${isCollapsible ? '<span class="material-symbols-outlined text-xs text-on-surface-variant">expand_more</span>' : ''}
+    </div>
+    <div class="${isCollapsible ? 'hidden' : ''}">`;
+
+  // Files in this folder
+  if (node.files.length > 0) {
+    html += `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-2">
+      ${node.files.map(f => renderFileThumbnail(f, getFileModalIndex(orderedFiles, f))).join("")}
+    </div>`;
+  }
+
+  // Nested subfolders
+  for (const child of node.children) {
+    html += renderFolderNode(child, orderedFiles, indent + 1);
+  }
+
+  html += `</div></div>`;
+  return html;
+}
+
+function countNodeFiles(node) {
+  let count = node.files ? node.files.length : 0;
+  if (node.children) {
+    for (const child of node.children) count += countNodeFiles(child);
+  }
+  return count;
+}
+
+function getFileModalIndex(orderedFiles, file) {
+  return orderedFiles.findIndex(f => f.id === file.id);
 }
 
 // === ASYNC POST-RENDER: Load Drive data after view renders ===
@@ -1388,6 +1858,16 @@ async function loadHeroImage() {
   } catch (e) { /* silent */ }
 }
 
+async function refreshSingleIndicator(indicatorId) {
+  // Invalidate cached data for this indicator so loadDriveForDetail fetches fresh
+  const cachePrefix = `ind_${indicatorId}_`;
+  if (typeof driveCache !== "undefined") {
+    Object.keys(driveCache).forEach(k => { if (k.startsWith(cachePrefix)) delete driveCache[k]; });
+  }
+  showToast(`${t('refresh.btn')} #${indicatorId}...`);
+  await loadDriveForDetail(indicatorId);
+}
+
 async function loadDriveForDetail(indicatorId) {
   const evidenceEl = document.getElementById("drive-evidence");
   const docEl = document.getElementById("drive-doc-content");
@@ -1395,8 +1875,8 @@ async function loadDriveForDetail(indicatorId) {
   if (!evidenceEl) return;
 
   if (!driveReady) {
-    evidenceEl.innerHTML = renderDriveError(driveError || (getLang() === "en" ? "Drive not ready" : "Drive ยังไม่พร้อม"));
-    if (mappingEl) mappingEl.innerHTML = renderDriveError(driveError || (getLang() === "en" ? "Drive not ready" : "Drive ยังไม่พร้อม"));
+    evidenceEl.innerHTML = renderDriveError(driveError || t('drive.not.ready'));
+    if (mappingEl) mappingEl.innerHTML = renderDriveError(driveError || t('drive.not.ready'));
     return;
   }
 
@@ -1408,25 +1888,87 @@ async function loadDriveForDetail(indicatorId) {
   try {
     const isEn = typeof getLang === 'function' && getLang() === 'en';
     const result = await driveFilesForIndicator(indicatorId, item.cat, isEn);
+    const L = getLang();
 
     // Update mapping verification
     if (mappingEl) {
       mappingEl.innerHTML = renderMappingVerification(indicatorId, item.cat, result);
     }
 
-    // Update evidence panel with thumbnail grid
-    currentEvidenceFiles = result.files;
+    const isAdmin = typeof adminUnlocked !== "undefined" && adminUnlocked;
+
+    // STRICT RENDERING: Check validation status before showing data
+    if (result.validation && result.validation.status === "error") {
+      if (isAdmin) {
+        // Admin: show full error details with issue list
+        const issueList = result.validation.issues.map(i => `<li class="text-xs">${i}</li>`).join("");
+        evidenceEl.innerHTML = `<div class="border-2 border-red-200 bg-red-50 rounded-xl p-6 text-center">
+          <span class="material-symbols-outlined text-4xl text-red-400">error_outline</span>
+          <p class="text-sm font-bold text-red-700 mt-2">${t("data.structure.issue")}</p>
+          <ul class="text-red-600 mt-2 text-left list-disc list-inside space-y-1">${issueList}</ul>
+          <button onclick="refreshDriveData()" class="mt-3 text-xs font-bold text-red-600 bg-white border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">
+            <span class="material-symbols-outlined text-xs align-middle mr-1">refresh</span>${t("refresh.btn")}
+          </button>
+        </div>`;
+      } else {
+        // Public: generic "data not ready" message, no technical details
+        evidenceEl.innerHTML = `<div class="border-2 border-dashed border-outline-variant/30 rounded-xl p-8 text-center">
+          <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">hourglass_empty</span>
+          <p class="text-sm text-on-surface-variant mt-2 font-thai">${t('evidence.preparing')}</p>
+        </div>`;
+      }
+      if (docEl) docEl.innerHTML = "";
+      return;
+    }
+
+    // Warning state: show data but with warning banner (admin only sees details)
+    if (result.validation && result.validation.status === "warning" && isAdmin) {
+      const warnMsg = result.validation.issues.join("; ");
+      evidenceEl.insertAdjacentHTML("afterbegin", `<div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+        <span class="material-symbols-outlined text-amber-500 text-sm">warning</span>
+        <p class="text-[11px] text-amber-700">${warnMsg}</p>
+      </div>`);
+    }
+
+    // Update evidence panel — use subfolder tree renderer to preserve structure
     if (result.files.length === 0) {
+      currentEvidenceFiles = [];
+      const isEn2 = isEn;
       evidenceEl.innerHTML = `<div class="border-2 border-dashed border-outline-variant/30 rounded-xl p-8 text-center">
-        <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">cloud_done</span>
-        <p class="text-sm text-on-surface-variant mt-2 font-thai">${t("detail.evidence.empty")}</p>
+        <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">${isEn2 ? 'translate' : 'cloud_done'}</span>
+        <p class="text-sm text-on-surface-variant mt-2 font-thai">${isEn2 && result.hasEnglishVersion === false
+          ? t('evidence.en.preparing')
+          : t("detail.evidence.empty")
+        }</p>
       </div>`;
     } else {
-      evidenceEl.innerHTML = `
-        ${renderFileSummary(result.files)}
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          ${result.files.map((f, idx) => renderFileThumbnail(f, idx)).join("")}
-        </div>`;
+      // Warning banner: admin sees full details, public sees nothing
+      const warningBanner = (isAdmin && result.validation && result.validation.status === "warning")
+        ? `<div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            <span class="material-symbols-outlined text-amber-500 text-sm">warning</span>
+            <p class="text-[11px] text-amber-700">${result.validation.issues.join("; ")}</p>
+          </div>`
+        : "";
+      // Traversal info: admin only
+      const traversalInfo = (isAdmin && result.traversal)
+        ? `<div class="flex items-center gap-2 text-[10px] text-on-surface-variant mb-2">
+            <span class="material-symbols-outlined" style="font-size:12px">account_tree</span>
+            ${t('traversal.depth')}: ${result.traversal.depth} · ${t('traversal.folders')}: ${result.traversal.visitedCount}
+            · ${t('traversal.subfolders')}: ${result.subfolders?.length || 0}
+            ${result.hasEnglishVersion ? ' · <span class="text-blue-600 font-bold">EN ✓</span>' : ' · <span class="text-amber-500">EN ✗</span>'}
+            ${result.traversal.errors.length > 0 ? ` · <span class="text-amber-500">${result.traversal.errors.length} error(s)</span>` : ""}
+          </div>`
+        : "";
+
+      // Use tree renderer if tree structure is available, otherwise fallback to flat grid
+      const treeHtml = result.tree
+        ? renderSubfolderTree(result.tree, result.files)
+        : `${renderFileSummary(result.files)}
+           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+             ${result.files.map((f, idx) => { currentEvidenceFiles = result.files; return renderFileThumbnail(f, idx); }).join("")}
+           </div>`;
+
+      evidenceEl.innerHTML = `${warningBanner}${traversalInfo}${treeHtml}`;
     }
 
     // Show Google Doc content if found
@@ -1436,7 +1978,7 @@ async function loadDriveForDetail(indicatorId) {
       docEl.innerHTML = `<p class="text-on-surface-variant leading-relaxed font-thai italic">${t("detail.context.placeholder")}</p>`;
     }
   } catch (e) {
-    evidenceEl.innerHTML = renderDriveError((getLang() === "en" ? "Error: " : "เกิดข้อผิดพลาด: ") + e.message);
+    evidenceEl.innerHTML = renderDriveError(t('drive.error.prefix') + e.message);
   }
 }
 
@@ -1553,22 +2095,58 @@ function renderFloatingQuota() {
 // === REFRESH DRIVE DATA ===
 async function refreshDriveData() {
   if (typeof driveReady === "undefined") return;
-  // Clear all caches
+  const btn = document.getElementById("refreshBtn");
+  const icon = btn?.querySelector(".material-symbols-outlined");
+  if (icon) icon.classList.add("refresh-pulse");
+
+  // Clear all caches and invalidate stale data
   Object.keys(driveCache).forEach(k => delete driveCache[k]);
-  localStorage.removeItem("84th_metadata");
-  localStorage.removeItem("84en_metadata");
-  localStorage.removeItem("84th_last_sync");
-  localStorage.removeItem("84en_last_sync");
   driveFolderMapReady = false;
   driveReady = false;
   driveError = null;
-  // Show loading state
-  render();
-  // Re-initialize
+
+  // Invalidate legacy globals to prevent stale data display
+  window.INDICATOR_TH = {};
+  window.INDICATOR_EN = {};
+
+  render(); // Show loading state
+
+  // Re-initialize Drive connection
   await initDrive();
-  // Re-render with fresh data
+  if (!driveReady) {
+    if (icon) icon.classList.remove("refresh-pulse");
+    rebuildDriveStatusMap();
+    render();
+    return;
+  }
+
+  // Run auto-discover to detect mapping changes
+  try {
+    const discovery = await autoDiscoverMapping();
+    if (discovery.changes.length > 0 && typeof adminUnlocked !== "undefined" && adminUnlocked) {
+      // Admin sees mapping change alert
+      window._pendingMappingChanges = discovery;
+      showToast(t("mapping.changes.detected") + ` (${discovery.changes.length})`);
+    } else if (discovery.changes.length > 0) {
+      // Non-admin: auto-apply changes silently
+      lockMapping(discovery.mapping);
+    }
+    if (Object.keys(loadMapping()).length === 0) {
+      lockMapping(discovery.mapping);
+    }
+  } catch (e) {
+    console.warn("[Refresh] Auto-discover failed:", e.message);
+  }
+
+  // Force full sync with recursive traversal
+  await fullSync({ force: true });
+
+  // Rebuild language-aware status map after fresh sync
+  rebuildDriveStatusMap();
+  logRefreshAudit("manual");
+
   render();
-  // Show success toast
+  if (icon) icon.classList.remove("refresh-pulse");
   showToast(t("refresh.done"));
 }
 
@@ -1589,76 +2167,103 @@ function showToast(msg) {
   }, 2500);
 }
 
-// === AUTO-STATUS UPDATE FROM DRIVE ===
-// When Drive has files for an indicator, auto-update its status
+// === DRIVE STATUS MAP (populated from sync state) ===
 let driveStatusMap = {}; // indicatorId -> { hasFiles, fileCount }
 
-async function scanDriveStatuses() {
-  if (!driveReady) return;
-  try {
-    await buildDriveFolderMap();
-    const catIds = [...new Set(D.map(d => d[1]))];
-    for (const catId of catIds) {
-      const folderId = driveFolderMap[catId];
-      if (!folderId) continue;
-      const allItems = await driveListAll(folderId);
-      const folders = allItems.filter(f => f.mimeType === "application/vnd.google-apps.folder");
-      for (const folder of folders) {
-        const num = matchIndicatorNumber(folder.name);
-        if (num && num >= 1 && num <= 84) {
-          const files = await driveFiles(folder.id);
-          driveStatusMap[num] = { hasFiles: files.length > 0, fileCount: files.length, folderName: folder.name };
-          // Auto-update original D array: d[6] is status field
-          // waiting -> in progress if files exist in Drive
-          const row = D.find(d => d[0] === num);
-          if (row && files.length > 0 && row[6] === "w") {
-            row[6] = "p";
-          }
-        }
-      }
+function rebuildDriveStatusMap() {
+  const syncState = typeof loadSyncState === "function" ? loadSyncState() : {};
+  const L = typeof getLang === "function" ? getLang() : "th";
+  driveStatusMap = {};
+  for (let i = 1; i <= 84; i++) {
+    const s = syncState[i];
+    if (s) {
+      const fc = L === "en" ? (s.enFileCount || 0) : (s.thFileCount || 0);
+      driveStatusMap[i] = {
+        hasFiles: fc > 0,
+        fileCount: fc,
+        thFileCount: s.thFileCount || 0,
+        enFileCount: s.enFileCount || 0,
+        hasEnglishVersion: !!s.hasEnglishVersion,
+        subfolderNames: s.subfolderNames || []
+      };
     }
-    console.log("Drive status scan complete:", Object.keys(driveStatusMap).length, "indicators mapped");
-  } catch (e) {
-    console.warn("Drive status scan failed:", e);
   }
 }
 
 // === DASHBOARD AUTO-REFRESH ===
 let dashboardRefreshTimer = null;
+let backgroundSyncTimer = null;
+const BG_SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 function startDashboardAutoRefresh() {
   if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer);
   dashboardRefreshTimer = setInterval(() => {
-    if (currentView === "dashboard") {
+    if (currentView === "dashboard" && !document.hidden) {
       updateNavDriveStatus();
       const qc = document.getElementById("quota-card");
       if (qc) qc.innerHTML = renderQuotaCard();
       renderFloatingQuota();
     }
-  }, 30000); // Update every 30 seconds
+  }, 30000); // UI update every 30 seconds (only when tab visible)
+
+  // Background full sync every 5 minutes (paused when tab hidden)
+  if (backgroundSyncTimer) clearInterval(backgroundSyncTimer);
+  backgroundSyncTimer = setInterval(async () => {
+    if (document.hidden || !driveReady) return;
+    try {
+      console.log("[BG Sync] Starting background refresh...");
+      if (typeof fullSync === "function") await fullSync();
+      rebuildDriveStatusMap();
+      logRefreshAudit("background");
+      if (currentView === "dashboard") render();
+    } catch (e) {
+      console.warn("[BG Sync] Error:", e.message);
+    }
+  }, BG_SYNC_INTERVAL);
 }
 
-// === REFRESH WITH ANIMATION ===
-const _origRefresh = refreshDriveData;
-refreshDriveData = async function () {
-  const btn = document.getElementById("refreshBtn");
-  const icon = btn?.querySelector(".material-symbols-outlined");
-  if (icon) icon.classList.add("refresh-pulse");
-  await _origRefresh();
-  if (icon) icon.classList.remove("refresh-pulse");
-};
+// === REFRESH AUDIT TRAIL (C-4) ===
+function logRefreshAudit(trigger) {
+  try {
+    const trail = JSON.parse(localStorage.getItem("84_refresh_trail") || "[]");
+    trail.push({ ts: new Date().toISOString(), trigger: trigger || "manual", lang: getLang() });
+    // Keep only last 50 entries
+    if (trail.length > 50) trail.splice(0, trail.length - 50);
+    localStorage.setItem("84_refresh_trail", JSON.stringify(trail));
+  } catch (e) { /* silent */ }
+}
+function getRefreshAuditTrail() {
+  try { return JSON.parse(localStorage.getItem("84_refresh_trail") || "[]"); } catch (e) { return []; }
+}
+
+// === OFFLINE DETECTION (E-2) ===
+function showOfflineBanner() {
+  let banner = document.getElementById("offline-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "offline-banner";
+    banner.className = "fixed top-0 left-0 right-0 z-[200] bg-red-600 text-white text-center py-2 text-sm font-bold flex items-center justify-center gap-2 no-print";
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML = `<span class="material-symbols-outlined text-sm">wifi_off</span>${t('offline.message')}<button onclick="location.reload()" class="ml-3 px-3 py-0.5 bg-white text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">${t('offline.retry')}</button>`;
+  banner.style.display = "flex";
+}
+function hideOfflineBanner() {
+  const banner = document.getElementById("offline-banner");
+  if (banner) banner.style.display = "none";
+}
+window.addEventListener("offline", showOfflineBanner);
+window.addEventListener("online", () => { hideOfflineBanner(); showToast("✅ " + t('offline.retry')); });
 
 // === INIT ===
 document.addEventListener("DOMContentLoaded", async () => {
+  if (!navigator.onLine) showOfflineBanner();
   document.documentElement.lang = getLang();
   initNavScroll();
   onHashChange();
   await initDrive();
+  rebuildDriveStatusMap();
   render();
   renderFloatingQuota();
-  // Scan Drive for auto-status updates in background
-  scanDriveStatuses().then(() => {
-    render(); // Re-render with updated statuses
-    renderFloatingQuota();
-  });
   startDashboardAutoRefresh();
 });

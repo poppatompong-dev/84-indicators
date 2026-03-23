@@ -587,12 +587,17 @@
       <!-- Portal Header -->
       <div class="bg-velvet-gradient p-8 text-center relative overflow-hidden flex-shrink-0">
         <div class="absolute inset-0 river-wave opacity-20"></div>
+        <div class="absolute right-5 top-5 z-20 text-xs md:text-sm text-white/90 font-headline select-none">
+          <button id="welcomeLangTH" type="button" onclick="setLang('th')" class="transition-colors">TH</button>
+          <span class="px-1 text-white/70">|</span>
+          <button id="welcomeLangEN" type="button" onclick="setLang('en')" class="transition-colors">EN</button>
+        </div>
         <div class="relative z-10 space-y-2">
           <div class="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl mx-auto flex items-center justify-center mb-4">
             <span class="material-symbols-outlined text-white text-3xl">eco</span>
           </div>
-          <h2 class="text-2xl md:text-3xl font-headline font-black text-white">Welcome to the Living Portfolio</h2>
-          <p class="text-primary-50 text-sm md:text-base font-medium opacity-90">Uthai Thani Green Destination • 84 Indicators System</p>
+          <h2 class="text-2xl md:text-3xl font-headline font-black text-white" data-i18n="welcome.title">Welcome to the Living Portfolio</h2>
+          <p class="text-primary-50 text-sm md:text-base font-medium opacity-90" data-i18n="welcome.subtitle">Uthai Thani Green Destination • 84 Indicators System</p>
         </div>
       </div>
       
@@ -603,13 +608,13 @@
         <div class="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 hover:shadow-sm transition-shadow">
           <div class="flex items-center gap-2 mb-3">
             <span class="material-symbols-outlined text-deep-teak text-xl">admin_panel_settings</span>
-            <h3 class="font-headline font-extrabold text-on-surface text-lg">For Staff (เจ้าหน้าที่)</h3>
+            <h3 class="font-headline font-extrabold text-on-surface text-lg" data-i18n="welcome.staff.title">For Staff</h3>
           </div>
-          <p class="text-xs text-on-surface-variant mb-4 leading-relaxed">Ensure all evaluation files are correctly uploaded to Google Drive. The system strictly enforces Data Accuracy and will auto-downgrade incomplete statuses.</p>
+          <p class="text-xs text-on-surface-variant mb-4 leading-relaxed" data-i18n="welcome.staff.desc">Ensure all evaluation files are correctly uploaded to Google Drive. The system strictly enforces Data Accuracy and will auto-downgrade incomplete statuses.</p>
           <ul class="space-y-2 text-xs text-on-surface-variant/80 font-thai">
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">check_circle</span> Upload evidence directly to exact Google Drive Folders.</li>
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">sync</span> Data syncs automatically upon pressing <span class="material-symbols-outlined text-[12px] align-middle px-1">refresh</span></li>
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-error mt-0.5">warning</span> "Complete" status requires at least 1 file to be found. </li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">check_circle</span> <span data-i18n="welcome.staff.item1">Upload evidence directly to exact Google Drive Folders.</span></li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">sync</span> <span data-i18n="welcome.staff.item2">Data syncs automatically upon pressing Refresh.</span></li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-error mt-0.5">warning</span> <span data-i18n="welcome.staff.item3">"Complete" status requires at least 1 file to be found.</span></li>
           </ul>
         </div>
 
@@ -617,13 +622,13 @@
         <div class="bg-surface-container p-5 rounded-2xl border border-outline-variant/10 hover:shadow-sm transition-shadow">
           <div class="flex items-center gap-2 mb-3">
             <span class="material-symbols-outlined text-river-blue text-xl">fact_check</span>
-            <h3 class="font-headline font-extrabold text-on-surface text-lg">For Evaluators (กรรมการ)</h3>
+            <h3 class="font-headline font-extrabold text-on-surface text-lg" data-i18n="welcome.evaluator.title">For Evaluators</h3>
           </div>
-          <p class="text-xs text-on-surface-variant mb-4 leading-relaxed">Review the official Uthai Thani structural evidence. Our system isolates languages (TH/EN) and guarantees Zero False-Positives for actual evidence.</p>
+          <p class="text-xs text-on-surface-variant mb-4 leading-relaxed" data-i18n="welcome.evaluator.desc">Review the official Uthai Thani structural evidence. Our system isolates languages (TH/EN) and helps minimize false-positives in evidence checks.</p>
           <ul class="space-y-2 text-xs text-on-surface-variant/80 font-thai">
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">language</span> Switch instantly between Thai/English tracking.</li>
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">verified</span> Use the <b>Data Verification</b> Audit tab to see the transparent checklist of exact missing files.</li>
-            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">image</span> Click any catalog file to open high-res thumbnail covers securely.</li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">language</span> <span data-i18n="welcome.evaluator.item1">Switch instantly between Thai/English tracking.</span></li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">verified</span> <span data-i18n="welcome.evaluator.item2">Use the Data Verification audit tab to see a transparent checklist of missing files.</span></li>
+            <li class="flex items-start gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary mt-0.5">image</span> <span data-i18n="welcome.evaluator.item3">Click any catalog file to open high-res thumbnail covers securely.</span></li>
           </ul>
         </div>
       </div>
@@ -632,10 +637,10 @@
       <div class="px-8 py-5 border-t border-outline-variant/10 bg-surface flex flex-col md:flex-row items-center justify-between gap-4">
         <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer group">
           <input type="checkbox" id="portalNoShow" checked class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 bg-white transition-all cursor-pointer">
-          <span class="group-hover:text-on-surface transition-colors">Do not show again (Don't track my cache)</span>
+          <span class="group-hover:text-on-surface transition-colors" data-i18n="welcome.noshow">Do not show again (Don't track my cache)</span>
         </label>
         <button onclick="hideWelcomePortal()" class="w-full md:w-auto px-8 py-3 bg-velvet-gradient text-white rounded-xl font-headline font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
-          Enter System
+          <span data-i18n="welcome.enter">Enter System</span>
         </button>
       </div>
     </div>
