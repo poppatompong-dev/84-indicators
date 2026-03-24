@@ -1,8 +1,15 @@
 // === GOOGLE DRIVE API MODULE ===
 const DRIVE_CONFIG = {
   API_KEY: "AIzaSyCA2-JWG89Q8DzwnHKBUhb_P3arsd8GizI",
+  // ROOT_FOLDER_ID = ROOT_2: หมวด 1 (1-20 TH), หมวด 3 (29-48 TH), หมวด 4 (49-54 TH), หมวด 6 (73-84 TH)
   ROOT_FOLDER_ID: "16SyUIAG8sHsgQDmlGjO5cB4-8nRGP1L9",
+  // ROOT_FOLDER_ID_1 = ROOT_1: หมวด 2 (21-28 TH), หมวด 5 (55-72 TH)
+  ROOT_FOLDER_ID_1: "1DV9mWwelboVzVJI6L5iTke1l0Pnq6INg",
+  // EN_ROOT_FOLDER_ID_2 (ROOT_2 English Version): EN indicators 1-9, 29-48
   EN_ROOT_FOLDER_ID: "1hNi__LPENVWEbMMlTU2lOsrZsDLGGY4Y",
+  EN_ROOT_FOLDER_ID_2: "1hNi__LPENVWEbMMlTU2lOsrZsDLGGY4Y",
+  // EN_ROOT_FOLDER_ID_1 (ROOT_1 English Version): EN indicators 10-28, 49-84
+  EN_ROOT_FOLDER_ID_1: "1NTDzSOmI16OEt0hePUc-sgWT2LSKJ93H",
   API_BASE: "https://www.googleapis.com/drive/v3",
   CACHE_TTL: 5 * 60 * 1000,              // default fallback (5 min)
   CACHE_TTL_MAP: 60 * 60 * 1000,         // folder map: 60 min
@@ -15,6 +22,268 @@ const DRIVE_CONFIG = {
   RETRY_BASE_MS: 1000,
   DAILY_QUOTA: 10000
 };
+
+// === STATIC DETERMINISTIC INDICATOR MAP ===
+// Source of truth: DRIVE_STRUCTURE.md — all folder IDs hardcoded, no name-guessing.
+// TH: one folderId per indicator (from their respective category folder in ROOT_1 or ROOT_2)
+// EN: one enFolderId per indicator (from N_English subfolder inside EN root category folder)
+// Indicator 47 EN is intentionally null — folder not yet created in Drive (see DRIVE_STRUCTURE.md note)
+const STATIC_INDICATOR_MAP = {
+  th: {
+    // ROOT_2: หมวด 1 การจัดการแหล่งท่องเที่ยว (cat=1, indicators 1-20)
+    1: "1T8wPeKmEpy6Yb0yQPCzopSuluNqXml3P",
+    2: "1YwQeS_2tg8_cpShue49PkBfrcjHOqWmi",
+    3: "1Tt_IzyjvODLkVSXO4bPh_VKqVCEwrbpN",
+    4: "1cxy6OFuCcCkQXkI0dO8RuuFa2K_3PB2I",
+    5: "1Uiz8su7e1EZrtoUbU_WCY_f1VLASizy2",
+    6: "1lEpEf-haHktrQKNErKUagxaiMpDAmVnB",
+    7: "1uR4apMxow_AsQhABkoFEMRfP2R2OPc9r",
+    8: "1w4lpkBrMx_Vv8qu5juafRhNDQAL5AKqR",
+    9: "1-QHPfCT-_AEdMo5DweVZRDck0gKKaVfy",
+    10: "1aNNqM4pd2h-a5Q-a_uqig2o0lYUwJ5lQ",
+    11: "14uFqGCtyG4lPNKILQM7XIgLJDQF58JRE",
+    12: "1ztDba22HIH_EkdZ9gQ0gMZmYil1_o_JB",
+    13: "15OTMsAZOaN9cfJ0sbxSBLGS4Jw7el-1p",
+    14: "184TSMDDDJe-ArJaPipFoWJ0VXuThztjQ",
+    15: "1uxfJIQHK_oERyLsD2xrJCOMzMm61zyun",
+    16: "1uFw0WK724hxVif5hst2jxXT4U2TKm_hX",
+    17: "1pz24KpA12DFOUib7KSSQwlAgLG8pYpKr",
+    18: "1gn-4PQE7VLIvkx74WAOzRp8KSByCujzw",
+    19: "1RpxGsPB3wrbNdlx_5YThYn4h3Kk6WPU3",
+    20: "1N39AJ_CS8tPwPpfyoIEB_ECnfpNDjok7",
+    // ROOT_1: หมวด 2 ธรรมชาติและทัศนียภาพ (cat=2, indicators 21-28)
+    21: "1NQIs2wAu4DAmTP4a4s8coONB9fprJBdR",
+    22: "1vXsboZkgZlAi9te6OoCAJkVXcrNIY7ip",
+    23: "1TnVN5-uOEw7VeUCBl2d15nQJHWWSvg8p",
+    24: "1zBWk5aAqWJ2WM20yI63LVpbjyYH5gF8n",
+    25: "1TUfexcayVF8tKV6xFAQnYj467h_nKHvN",
+    26: "13uZ2JxzHDRS7QjkBn6mCFSKl8kEytiyS",
+    27: "1QxtpJ8pn6dZRsrd7itFQoAMSwjhQpIUa",
+    28: "19zslqHsbJE_-0zxgXlwZulrBy9dAX81r",
+    // ROOT_2: หมวด 3 สิ่งแวดล้อมและสภาพภูมิอากาศ (cat=3, indicators 29-48)
+    29: "1ikUcn1XZKHEyib0cizjP458QUHJuPyZU",
+    30: "1vmaoa9QdsIs72qJ1ANzSGnZRT_faGi32",
+    31: "16fzs0dx2OeRpOFAfU_iBK2L1s9U5AWCE",
+    32: "10C5KNlWAPACjRlgKLUPwkoD25rMOzllJ",
+    33: "1T10UfW7TK8HuepOl4uQuajv364lpKQUa",
+    34: "1OaaWATu7X-PAbTgQCbdij8AWLT1PMSPw",
+    35: "1Gbv587wcOubHY3beLmHUXKIZzK16jLYD",
+    36: "1jh3Y9Wa_TaE_82ja9djiFdO6Ow6ZwYmJ",
+    37: "1bUqBUDiI_2kukD8Rsj6-kBZh8ZerV9ha",
+    38: "1y9TW_r14tzr2JLSHzfJMPAyFjZ4_HhCx",
+    39: "1614i8VIyWRtEmiEMrvx24zOL4kP_t1EA",
+    40: "1lFV0dTIuo59YnTnDwB3SDYL6SeEDhXC3",
+    41: "1JS9cPgMKZg7LhVyYc6vMlaDl6FyCj2xW",
+    42: "1iXxmmnNr6mIA6odycr08R9F5uIWod6aQ",
+    43: "1BTlsOnscyQC-EUdcWsA32huxXonMboCF",
+    44: "1ImRQ-lyVjHyg-5OXJeB5yyPdvAm-KPDi",
+    45: "1eV-QZlxugWQeJB6shimIsFhKhrCo5j76",
+    46: "1QL2YX16Nabc0yZ5VOc9F6vSRXzdYikwA",
+    47: "1MUqj4DiR8_V65kewEQSG5IpqBdGDLNnO",
+    48: "1J8nb3J-dlrwOX24XQKoA1ZmnNufqi_-z",
+    // ROOT_2: หมวด 4 วัฒนธรรมและประเพณี (cat=4, indicators 49-54)
+    49: "1GSVL7t91NjuRv7D3yuddoYVm-6iQsWwQ",
+    50: "1Dd-N_mZStWeb5LawBrAUToMZ07-ZpI3W",
+    51: "1eipL9UZqn7GyCDtzV0J-9grY8igd5ZX9",
+    52: "1EHVO8nHVFMN-ICfxjp-cjh-T_QZ5Hzic",
+    53: "1ZEKEyeR-WyAIzGyz7udXX2-sHjbVLrOL",
+    54: "1U3qMh3pM1FGHaqTUexlwpnuU7dMZf9oQ",
+    // ROOT_1: หมวด 5 ความเป็นอยู่ที่ดีของคนในสังคม (cat=5, indicators 55-72)
+    55: "15bNNs3rPQXX_jvug5RdlF9Ej-zFy3g4g",
+    56: "1-RcC6q5gkA69HHIOuEpZnzCJlIhyUw5k",
+    57: "1s3pCfbcfmP-i8HVLLPz61Jf3CMJ6by1O",
+    58: "1arVbUV8rZp-_Uzr-qdIvtUAkvyn8bnxj",
+    59: "1o4OFUeXWpabsrbQVtbdiZYbEBFhhXfyX",
+    60: "1UHNsZzahePmWjQL4hg7pA0uYnD8lxmOW",
+    61: "1eM3bHfj1WIGp1paEYyY_5hEgjVQYlzSX",
+    62: "1CahUU-STaVuED2915B68KLXZSb6COOps",
+    63: "1EMLn-HDGnsytf9BIQT1o8tGeshqxtRdj",
+    64: "1yDyQDHl1kPUCUttJoaPk7Khy-brEL9Sd",
+    65: "1nfuOpQkpWiASgcz771dKDvD6IX87LT3N",
+    66: "1th0J0owMU1juZZzOiWZuNkq_8B4os_0b",
+    67: "1Ss-wIydXSU34_hnaZEpc0tSMZTP6GqGl",
+    68: "1K5arTRwtfQigkO3bjXdVDgVNw9eCZ9Gn",
+    69: "1ijBk_DTupJF4Cu14XvXsWxbrNni883U_",
+    70: "1bY8scN4FKqCP53RFottI7h6BvPaqX4Td",
+    71: "1Vcsc2lp42qgi1OwX2pdTBFJmpcntREVo",
+    72: "1PEZxoVVr2Kd7MIWLQ7GZ97c-JVlsph0D",
+    // ROOT_2: หมวด 6 การประกอบธุรกิจและการบริการ (cat=6, indicators 73-84)
+    73: "1qcyyOB6GjpH-x74Tc8sjNF19Z9n6WfXz",
+    74: "1w7I4R4slU45EE0MJkqzACHYPWy3fTlP2",
+    75: "17dOOJn32MAp-4nCE74fRkPWttoIiyn5L",
+    76: "1Jh0JlyjlxYRfjWUSNedGg0mILjBA6vEQ",
+    77: "1ED-EPfnAX7Gl5CW_u0SdyWuJUri_D7pw",
+    78: "1AM7a1qRxS4c2kQaL55Yxgc-7hLU30Tzu",
+    79: "1svn9LLb27HqsqJ-lN0VSygo8F1hnKGFo",
+    80: "1ciPz38p517gmmM7YE0ft0Ycpc4G8_0pF",
+    81: "1Gm5_iCOQRMCOYPBL0cgU2FSFnFe0wgZP",
+    82: "1hIOdi3y2RNI7BFpfPN4K6VpsnyN-ZX-q",
+    83: "1YgI-rUUhzyoPCziKdlSQ-nrcUlsAYHkU",
+    84: "1L94NnSpLckT_9PfrmuT1sPx_WtNWETZo"
+  },
+  en: {
+    // ROOT_2 EN (1hNi__LP…): indicators 1-9 (1.Visitor Management)
+    1: "1WA7CAABRYC74ck6FopgarzrlDMr4zi-r",
+    2: "1GSRq-zWHFJ0_rPfCGVgh52t7WOeh0-ks",
+    3: "1GZ7DqwGIrGfDtXzLQgDo9zU5_AVCa9nA",
+    4: "1BR67k-pUgbS5NREQdZK15yay3SABQXko",
+    5: "1dTt3iWqKW7SyFd1oJ5y51sNrnwyT1-UT",
+    6: "14lth7VKwiu0dDJxewvJP5WMD-roaac4G",
+    7: "1RVEBKzX7KSdtiyFkmXt0inoYzcKJ1jzC",
+    8: "1xgOezKrefEgtql8AU34nkFk__0rfFo5T",
+    9: "16W0952z_uD8IJQnfZlDWTdtAo31Cw7zS",
+    // ROOT_1 EN (1NTDzSO…): indicators 10-20 (1.Visitor Management)
+    10: "1Jbaf4t4UI-3OJOrUWNrmR3Ldlb7wBWU6",
+    11: "1Zl0g5aGghTDaCQ9x3QpCfudDZFCiLrNH",
+    12: "10_IBrt6K_HKwEKnkCcipG5LIMkJgsdsB",
+    13: "1So_buldLpSs221vzsLcaao5fPJ2hTA7v",
+    14: "1l_kixv3tEVV5ph1sIff61yIuyt52CrIu",
+    15: "1qVYz5J4m5ltYuMk-B_WGRQothMcP23H7",
+    16: "1qYf-40dkkHxMW1xEnCvp3oheIeD25xbc",
+    17: "1ECS2ZtvtCeV9OvEcyjm6NeSX8YbglI-H",
+    18: "19uWX2IriJpjkUpM-RQ_05rHnyt4u8ZJT",
+    19: "15TJW2vGHPM6FCpSJOJl_uBcjFRG8FNQj",
+    20: "1N9QIShcVOV-7ShgXF-DNAJM_hEyCMPcM",
+    // ROOT_1 EN (1NTDzSO…): indicators 21-28 (2.Nature&conservation)
+    21: "1nW7x-ltQ8T_CZ9i9_o9TifMf92c_AMoj",
+    22: "158ZtEzs0YFLFKzmsC379P-Z8K6KdhUBM",
+    23: "1F8gCnRjfcCeXMVNY-ReEDEBOo6br56jn",
+    24: "1-LgzvN2Khvot2iWcVZczE8SpWBHSN6Ep",
+    25: "1JdVkbxvYLLiChpAH5GbMjGU9z__PtRbG",
+    26: "1rAbTiIMqAoIxvAocdzU00g09TmF15j9O",
+    27: "15rAz4-6isAbdS_prShmvFAFnmjnppS9j",
+    28: "1Ttedx0XBsSdXynogMPGXqKdZirDlyWZB",
+    // ROOT_2 EN (1hNi__LP…): indicators 29-48 (3.Water management)
+    29: "1tmC_DUk-sQGP12pOpaQIU5Ctr7rl99RK",
+    30: "1nWR2iIsiBSpvj8Y9eoV9DoxL9f9h9UwJ",
+    31: "1MhthimWC4HBFS8OI0cPV5tffPZHqhDxR",
+    32: "13tbMgNKKQt9hthExqtmB3DF62geJCRKm",
+    33: "1WMMQIELGYVMKlRtVmG75pgFUT_rUGBy3",
+    34: "1lwvNvlRhBespyGNQVlRHuAO4ozGx4aS_",
+    35: "1j56snYOjN8Qas0fR0yZXwDOcs4voxPIS",
+    36: "15D0SRAZwHGbExjnBlxtTNXJ-SvtVUc-d",
+    37: "1hhzR4DDrCDlrirA9qS6ItisZEHQIVhl-",
+    38: "1QWlwNWfZoBPwaVYti9nkKCoAedO0dopy",
+    39: "1be5KI5AwGkKAU3ev0omAbcPw1yCF3koF",
+    40: "1Xt5_ITl-tfLBMbEKDzLi2W6Bzc84KBG6",
+    41: "1n3ondJKnYs7eUiPhvvrEzrwiqQ0mqo7_",
+    42: "1rPAZMYxEqJNqhUkBHWOXq__OPEZ8fX2P",
+    43: "1R3NS_rjq2jlfEOozAt8gluJ3RQTfxktR",
+    44: "102ILy5rNX99FPOjr5_XrCKZ4C-_s0hF4",
+    45: "1Bp2PNC13XdKwsidTtogZpQSHiPrw7GoH",
+    46: "1D_-Cz_RCQZRhcy41697PHiVyZJVNCuLP",
+    47: null, // 47_English not yet created in Drive (expected missing — WARNING only)
+    48: "1Hqc_UhPmpgvqdJ-AvxwIRZLasNarscv0",
+    // ROOT_1 EN (1NTDzSO…): indicators 49-54 (4.People&Tradition)
+    49: "1esUgW8QXgPdFI1WGniuEp7hXXxWYKv1C",
+    50: "1lB9veY4eT7dO18dZ-UBi2K88IKurPLEE",
+    51: "1Q-xS3xvwPVK6K9enqzPk4udDhkdDuG-l",
+    52: "1KG4HtgBzLtxqLHtbp5C-ZNi_XYgaCGlb",
+    53: "1VhIM6VRRbLuuANL_Kero_Y-iP82sVcNi",
+    54: "1a2hb66bt79iwt5k30ob_sRl9ntJElMJN",
+    // ROOT_1 EN (1NTDzSO…): indicators 55-72 (5.Socio-Economic Impact)
+    55: "1GiA31jsBVJ2MLnOgdspHNru_LK0gtqx9",
+    56: "1jg4CqMWsyyHW2WUMhModAFomn8l2t5Ab",
+    57: "1mcCAqHdcprRfW2ZPZ2laeeS18_QirpuW",
+    58: "17vjZcTf1AIin_X-8pFomOevmjf1mGDgy",
+    59: "184aTA9XFw7R3AwSF_vwPY3A0bVDSqZHi",
+    60: "1O24NwvcuoY7Xmrw_IQmX9qvsnYgoS8t9",
+    61: "12i8u9ePGGO-FEdTPO02g9HpKfwIRlgQF",
+    62: "14DumhZp1JxFds_oThzeW1EMhfvPF5h5R",
+    63: "1JnVEugrFEaWOPMjmTXI-GUCpzmOHuvgU",
+    64: "1d9WpKH1i-R__-U9M6lEGejWfubhpq7ou",
+    65: "1Ip4DfttjO9aHtQUPyajprGPkHpNTRgJ_",
+    66: "1Qu69Ft9YDXtt2QP36SboDAyptWRafQVV",
+    67: "1jALsLi2YRimf3M9EKrjAywB0fM_8tYeV",
+    68: "1bBVg3qtUG9Gsv6BViRqQ88lwi3TfHrAv",
+    69: "19i8_rMrU4Hg--kgdnwLtR0hGozl2do4U",
+    70: "1po5NLtc1vWzxdfYBgnoH4E-EoOSwj7pV",
+    71: "1cW1BJRjJYEBB-8ZCeGg9hksD58-vziw5",
+    72: "1U8F5DT1S2Pd6g7Jg7kFgU7pt6Ny28g5I",
+    // ROOT_1 EN (1NTDzSO…): indicators 73-84 (6.Information & marketing)
+    73: "1LeGhc9gdcGtvyadc9rIEeQeRjvYNXwOt",
+    74: "1TtezbyXhH8zfIMerB_v8CBJSlQhC9MJm",
+    75: "17Yp2urUizEzMKsPJxL2MkAIxdeW0Pw5t",
+    76: "1VwWFgfbZoo0nIHLFnqQYnicrZuEfp7t8",
+    77: "1RmTPCRXQMDX-zyeMoVJtBvWzJgAYaL3e",
+    78: "1W0ud1JqMeVaFiYwHCyaqLin9O-RNTucu",
+    79: "1ps3Hc1d4WeD1nOTKcmQ9FGlougz55J4r",
+    80: "1nRKWoFMS6OBSLYhraUoxrZm7aXIpAzsW",
+    81: "1owyUSgV_tBJJnx7tQDvsjo5CGJYmWEHq",
+    82: "1sH7WG2GZCNkQFJ6qEyyXZqIV0laIKvgk",
+    83: "1kEU47ce00ST5uK2Opz2rhfiEPSa-t3B6",
+    84: "1PxX-m4dLf8ZDoqUYHZMj6TLI4xNOYtPU"
+  }
+};
+
+// TH root per indicator: ROOT_1 holds cat 2 (21-28) and cat 5 (55-72); ROOT_2 holds the rest
+function getThRootForIndicator(indicatorId) {
+  if ((indicatorId >= 21 && indicatorId <= 28) || (indicatorId >= 55 && indicatorId <= 72)) {
+    return DRIVE_CONFIG.ROOT_FOLDER_ID_1;
+  }
+  return DRIVE_CONFIG.ROOT_FOLDER_ID;
+}
+
+// EN root per indicator: ROOT_2 EN holds 1-9 and 29-48; ROOT_1 EN holds 10-28 and 49-84
+function getEnRootForIndicator(indicatorId) {
+  if ((indicatorId >= 1 && indicatorId <= 9) || (indicatorId >= 29 && indicatorId <= 48)) {
+    return DRIVE_CONFIG.EN_ROOT_FOLDER_ID_2;
+  }
+  return DRIVE_CONFIG.EN_ROOT_FOLDER_ID_1;
+}
+
+// === getFolderSource — deterministic, no name-guessing ===
+// Returns { rootFolderId, folderId } from static table.
+// Falls back to localStorage mapping if static entry is missing.
+function getFolderSource(indicatorId, lang) {
+  const id = parseInt(indicatorId);
+  if (lang === 'en') {
+    const folderId = STATIC_INDICATOR_MAP.en[id] || null;
+    return { rootFolderId: getEnRootForIndicator(id), folderId };
+  }
+  const folderId = STATIC_INDICATOR_MAP.th[id] || null;
+  return { rootFolderId: getThRootForIndicator(id), folderId };
+}
+
+// === initStaticMapping — seed localStorage mapping from STATIC_INDICATOR_MAP ===
+// Merges into existing mapping without overwriting admin-locked TH entries.
+// Always sets enFolderId from static table (never name-guessed).
+function initStaticMapping() {
+  const existing = loadMapping();
+  let changed = 0;
+  for (let i = 1; i <= 84; i++) {
+    const thId = STATIC_INDICATOR_MAP.th[i] || null;
+    const enId = STATIC_INDICATOR_MAP.en[i] || null; // null for indicator 47
+    if (!existing[i]) existing[i] = {};
+    // TH folder: only overwrite if not locked by admin
+    if (thId && !existing[i].locked && existing[i].folderId !== thId) {
+      existing[i].folderId = thId;
+      existing[i].source = "static";
+      changed++;
+    }
+    // EN folder: always set from static table (authoritative)
+    if (enId && existing[i].enFolderId !== enId) {
+      existing[i].enFolderId = enId;
+      existing[i].hasEnglishVersion = true;
+      changed++;
+    }
+    // Indicator 47 EN is intentionally missing — mark but don't set enFolderId
+    if (i === 47 && !enId) {
+      existing[i]._en47missing = true;
+      // hasEnglishVersion stays false for 47 EN (no folder exists)
+    }
+    // Ensure cat is set correctly
+    const catForIndicator = i <= 20 ? 1 : i <= 28 ? 2 : i <= 48 ? 3 : i <= 54 ? 4 : i <= 72 ? 5 : 6;
+    if (!existing[i].cat) { existing[i].cat = catForIndicator; changed++; }
+  }
+  if (changed > 0) {
+    saveMapping(existing);
+    console.log(`[StaticMapping] Seeded ${changed} mapping entries from STATIC_INDICATOR_MAP`);
+  } else {
+    console.log("[StaticMapping] Mapping already up-to-date");
+  }
+  return existing;
+}
 
 // === CACHE ===
 const driveCache = {};
@@ -509,43 +778,58 @@ function folderMatchesIndicator(folderName, indicatorId) {
 }
 
 // === EN INDICATOR FOLDER MAP ===
-// Scans EN root → EN category folders → N_English indicator folders.
-// Returns { indicatorId -> enFolderId } for all discovered EN indicators.
+// Scans BOTH EN roots → EN category folders → N_English indicator folders.
+// ROOT_2 EN (1hNi__LP…): indicators 1-9, 29-48
+// ROOT_1 EN (1NTDzSO…): indicators 10-28, 49-84
+// Returns { indicatorId -> { enFolderId, enFolderName, enCatId, enRoot } }
 async function discoverEnIndicatorMap() {
   const enMap = {};
-  try {
-    const enCatFolders = await driveFolders(DRIVE_CONFIG.EN_ROOT_FOLDER_ID);
-    for (const catFolder of enCatFolders) {
-      // EN category folders: "1.Visitor Management", "3.Water management"
-      const catId = matchCategoryNumber(catFolder.name) ||
-        (function () { const m = catFolder.name.match(/^(\d+)[.\s]/); return m ? parseInt(m[1]) : null; })();
-      if (!catId) continue;
-      try {
-        const items = await driveListAll(catFolder.id);
-        const folders = items.filter(f => f.mimeType === "application/vnd.google-apps.folder");
-        for (const folder of folders) {
-          // EN indicator folders: "1_English", "29_English"
-          const m = folder.name.match(/^(\d+)[_\s]/);
-          const num = m ? parseInt(m[1]) : matchIndicatorNumber(folder.name);
-          if (num && num >= 1 && num <= 84) {
-            enMap[num] = { enFolderId: folder.id, enFolderName: folder.name, enCatId: catId };
-            console.log(`[EN Discovery] Indicator ${num} → ${folder.name} (${folder.id})`);
+  const enRoots = [
+    { id: DRIVE_CONFIG.EN_ROOT_FOLDER_ID_2, label: "ROOT_2-EN" },
+    { id: DRIVE_CONFIG.EN_ROOT_FOLDER_ID_1, label: "ROOT_1-EN" }
+  ];
+
+  for (const enRoot of enRoots) {
+    try {
+      const enCatFolders = await driveFolders(enRoot.id);
+      for (const catFolder of enCatFolders) {
+        const catId = matchCategoryNumber(catFolder.name) ||
+          (function () { const m = catFolder.name.match(/^(\d+)[.\s]/); return m ? parseInt(m[1]) : null; })();
+        if (!catId) continue;
+        try {
+          const items = await driveListAll(catFolder.id);
+          const folders = items.filter(f => f.mimeType === "application/vnd.google-apps.folder");
+          for (const folder of folders) {
+            // EN indicator folders: "1_English", "29_English"
+            const m = folder.name.match(/^(\d+)[_\s]/);
+            const num = m ? parseInt(m[1]) : matchIndicatorNumber(folder.name);
+            if (num && num >= 1 && num <= 84) {
+              if (!enMap[num]) {
+                enMap[num] = { enFolderId: folder.id, enFolderName: folder.name, enCatId: catId, enRoot: enRoot.label };
+                console.log(`[EN Discovery][${enRoot.label}] Indicator ${num} → ${folder.name} (${folder.id})`);
+              } else {
+                console.warn(`[EN Discovery] Duplicate EN folder for indicator ${num}: ignoring ${folder.name} from ${enRoot.label} (already mapped from ${enMap[num].enRoot})`);
+              }
+            }
           }
+        } catch (e) {
+          console.warn(`[EN Discovery][${enRoot.label}] Failed to list EN cat folder ${catFolder.name}:`, e.message);
         }
-      } catch (e) {
-        console.warn(`[EN Discovery] Failed to list EN cat folder ${catFolder.name}:`, e.message);
       }
+    } catch (e) {
+      console.warn(`[EN Discovery] Failed to list EN root ${enRoot.label}:`, e.message);
     }
-  } catch (e) {
-    console.warn("[EN Discovery] Failed to list EN root:", e.message);
   }
-  console.log(`[EN Discovery] Found ${Object.keys(enMap).length} EN indicator folders`);
+
+  console.log(`[EN Discovery] Found ${Object.keys(enMap).length} EN indicator folders across both EN roots`);
   return enMap;
 }
 
 // === AUTO-DISCOVER ENGINE ===
-// Scans TH Drive root → category folders → indicator folders.
-// Also scans EN root for EN indicator folders (N_English pattern).
+// Scans BOTH TH roots → category folders → indicator folders.
+// ROOT_2: หมวด 1 (1-20), หมวด 3 (29-48), หมวด 4 (49-54), หมวด 6 (73-84)
+// ROOT_1: หมวด 2 (21-28), หมวด 5 (55-72)
+// Also scans BOTH EN roots for EN indicator folders (N_English pattern).
 // Returns { mapping, changes[], newFolders[], missingFolders[], catFolderMap } for admin review.
 async function autoDiscoverMapping() {
   const existingMapping = loadMapping();
@@ -555,14 +839,29 @@ async function autoDiscoverMapping() {
   const missingFolders = [];
   const catFolderMap = {}; // catId -> folderId (intermediate)
 
-  // 1. Discover category folders under TH Drive root (skip "English Version" folder)
-  const rootFolders = await driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID);
-  for (const f of rootFolders) {
-    if (f.name.trim() === ENGLISH_VERSION_FOLDER) continue;
-    const catId = matchCategoryNumber(f.name);
-    if (catId && catId >= 1 && catId <= 6) {
-      catFolderMap[catId] = f.id;
-      driveFolderMap[catId] = f.id; // Legacy compat
+  // 1. Discover category folders under BOTH TH roots (skip "English Version" folder)
+  const thRoots = [
+    { id: DRIVE_CONFIG.ROOT_FOLDER_ID, label: "ROOT_2" },
+    { id: DRIVE_CONFIG.ROOT_FOLDER_ID_1, label: "ROOT_1" }
+  ];
+  for (const thRoot of thRoots) {
+    try {
+      const rootFolders = await driveFolders(thRoot.id);
+      for (const f of rootFolders) {
+        if (f.name.trim() === ENGLISH_VERSION_FOLDER) continue;
+        const catId = matchCategoryNumber(f.name);
+        if (catId && catId >= 1 && catId <= 6) {
+          if (!catFolderMap[catId]) {
+            catFolderMap[catId] = f.id;
+            driveFolderMap[catId] = f.id; // Legacy compat
+            console.log(`[AutoDiscover][${thRoot.label}] Cat ${catId} → ${f.name} (${f.id})`);
+          } else {
+            console.warn(`[AutoDiscover] Duplicate category ${catId} found in ${thRoot.label}: ignoring ${f.name}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[AutoDiscover] Failed to list TH root ${thRoot.label}:`, e.message);
     }
   }
   driveFolderMapReady = true;
@@ -570,49 +869,65 @@ async function autoDiscoverMapping() {
   // 2. Discover TH indicator folders within each category
   for (const catId of Object.keys(catFolderMap)) {
     const catFolderId = catFolderMap[catId];
-    const items = await driveListAll(catFolderId);
-    const folders = items.filter(f => f.mimeType === "application/vnd.google-apps.folder");
-    for (const folder of folders) {
-      const num = matchIndicatorNumber(folder.name);
-      if (num && num >= 1 && num <= 84) {
-        newMapping[num] = {
-          folderId: folder.id,
-          folderName: folder.name,
-          cat: parseInt(catId)
-        };
+    try {
+      const items = await driveListAll(catFolderId);
+      const folders = items.filter(f => f.mimeType === "application/vnd.google-apps.folder");
+      for (const folder of folders) {
+        const num = matchIndicatorNumber(folder.name);
+        if (num && num >= 1 && num <= 84) {
+          newMapping[num] = {
+            folderId: folder.id,
+            folderName: folder.name,
+            cat: parseInt(catId)
+          };
+        }
       }
+    } catch (e) {
+      console.warn(`[AutoDiscover] Failed to list cat ${catId} folder:`, e.message);
     }
   }
 
-  // 3. Discover EN indicator folders from EN root and attach to mapping
+  // 3. Seed from static table for any indicators not found by auto-discover
+  for (let i = 1; i <= 84; i++) {
+    if (!newMapping[i] || !newMapping[i].folderId) {
+      const staticThId = STATIC_INDICATOR_MAP.th[i];
+      if (staticThId) {
+        const catForIndicator = i <= 20 ? 1 : i <= 28 ? 2 : i <= 48 ? 3 : i <= 54 ? 4 : i <= 72 ? 5 : 6;
+        newMapping[i] = { folderId: staticThId, folderName: `Indicator ${i} (static)`, cat: catForIndicator, source: "static" };
+        console.log(`[AutoDiscover] Indicator ${i}: using static TH folderId (not found by discovery)`);
+      }
+    }
+    // Always attach EN from static table (authoritative for EN)
+    const staticEnId = STATIC_INDICATOR_MAP.en[i];
+    if (staticEnId) {
+      if (!newMapping[i]) newMapping[i] = { folderId: null, folderName: null, cat: i <= 20 ? 1 : i <= 28 ? 2 : i <= 48 ? 3 : i <= 54 ? 4 : i <= 72 ? 5 : 6 };
+      newMapping[i].enFolderId = staticEnId;
+      newMapping[i].hasEnglishVersion = true;
+    }
+  }
+
+  // 4. Supplement EN from live discovery (fills any gaps not in static table)
   try {
     const enMap = await discoverEnIndicatorMap();
     for (const [numStr, enEntry] of Object.entries(enMap)) {
       const num = parseInt(numStr);
-      if (newMapping[num]) {
+      if (!newMapping[num]) newMapping[num] = { folderId: null, folderName: null, cat: enEntry.enCatId };
+      if (!newMapping[num].enFolderId) {
         newMapping[num].enFolderId = enEntry.enFolderId;
         newMapping[num].enFolderName = enEntry.enFolderName;
         newMapping[num].hasEnglishVersion = true;
-      } else {
-        // EN folder exists but TH folder not found — store anyway
-        newMapping[num] = {
-          folderId: null, folderName: null, cat: enEntry.enCatId,
-          enFolderId: enEntry.enFolderId, enFolderName: enEntry.enFolderName,
-          hasEnglishVersion: true
-        };
       }
     }
   } catch (e) {
     console.warn("[AutoDiscover] EN discovery failed:", e.message);
   }
 
-  // 3. Compare with existing mapping to detect changes
+  // 5. Compare with existing mapping to detect changes
   for (let i = 1; i <= 84; i++) {
     const old = existingMapping[i];
     const neu = newMapping[i];
     if (!neu || !neu.folderId) {
-      missingFolders.push({ indicatorId: i, reason: "Folder not found in Drive" });
-      // Preserve existing mapping if it was locked
+      missingFolders.push({ indicatorId: i, reason: "Folder not found in Drive or static table" });
       if (old && old.locked) {
         newMapping[i] = { ...old, _discoveryMissing: true };
       }
@@ -624,11 +939,11 @@ async function autoDiscoverMapping() {
       if (old.folderId !== neu.folderId) {
         changes.push({ indicatorId: i, field: "folderId", oldValue: old.folderId, newValue: neu.folderId, oldName: old.folderName, newName: neu.folderName });
       }
-      // Carry over lock status if unchanged
+      // Carry over lock status if TH folder unchanged
       if (old.locked && old.folderId === neu.folderId) {
         newMapping[i].locked = old.locked;
-        newMapping[i].source = old.source;
-        newMapping[i].hasEnglishVersion = old.hasEnglishVersion;
+        newMapping[i].source = old.source || "auto";
+        newMapping[i].hasEnglishVersion = neu.hasEnglishVersion || old.hasEnglishVersion;
       }
     }
   }
@@ -701,24 +1016,24 @@ function importMappingManifest(jsonString) {
 }
 
 // === BUILD FOLDER MAP (legacy compat + new mapping aware) ===
-// lang param: "th" uses ROOT_FOLDER_ID, "en" uses EN_ROOT_FOLDER_ID
+// Scans BOTH TH roots to populate driveFolderMap[catId] for all 6 categories.
 async function buildDriveFolderMap(lang) {
-  const effectiveLang = lang || "th";
-  const rootId = effectiveLang === "en" ? DRIVE_CONFIG.EN_ROOT_FOLDER_ID : DRIVE_CONFIG.ROOT_FOLDER_ID;
-  // Use language-specific ready flag to avoid rebuilding unnecessarily
-  const readyKey = `_folderMapReady_${effectiveLang}`;
-  if (driveFolderMapReady && driveFolderMap[readyKey] && Object.keys(driveFolderMap).length > 1) return driveFolderMap;
+  if (driveFolderMapReady && Object.keys(driveFolderMap).filter(k => !k.startsWith('_')).length >= 6) return driveFolderMap;
   try {
-    const folders = await driveFolders(rootId);
-    folders.forEach(f => {
-      // For TH: skip "English Version" folders at category level
-      if (effectiveLang === "th" && f.name.trim() === ENGLISH_VERSION_FOLDER) return;
+    const [r2folders, r1folders] = await Promise.all([
+      driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID),
+      driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID_1)
+    ]);
+    for (const f of [...r2folders, ...r1folders]) {
+      if (f.name.trim() === ENGLISH_VERSION_FOLDER) continue;
       const catId = matchCategoryNumber(f.name);
-      if (catId && catId >= 1 && catId <= 6) driveFolderMap[catId] = f.id;
-    });
-    driveFolderMap[readyKey] = true;
+      if (catId && catId >= 1 && catId <= 6 && !driveFolderMap[catId]) {
+        driveFolderMap[catId] = f.id;
+      }
+    }
+    driveFolderMap._folderMapReady_th = true;
     driveFolderMapReady = true;
-    console.log(`Drive folder map built (${effectiveLang}):`, driveFolderMap);
+    console.log(`Drive folder map built (both roots):`, driveFolderMap);
     return driveFolderMap;
   } catch (e) {
     console.error("Failed to build folder map:", e);
@@ -1024,38 +1339,51 @@ async function fullSync(options = {}) {
   syncInProgress = true;
   const force = options.force || false;
   const syncState = force ? {} : loadSyncState();
-  let mapping = loadMapping();
 
-  // If no mapping exists, auto-discover first (includes EN discovery)
-  if (Object.keys(mapping).length === 0) {
-    console.log("[Sync] No mapping found — running auto-discover...");
-    const discovery = await autoDiscoverMapping();
-    mapping = lockMapping(discovery.mapping);
-  } else {
-    // Supplement existing mapping with EN folder IDs if any indicator lacks enFolderId
-    const needsEnSupplement = Object.values(mapping).some(m => m && m.folderId && !m.enFolderId);
-    if (needsEnSupplement || options.force) {
-      console.log("[Sync] Supplementing mapping with EN folder IDs from EN root...");
-      try {
-        const enMap = await discoverEnIndicatorMap();
-        let supplemented = 0;
-        for (const [numStr, enEntry] of Object.entries(enMap)) {
-          const num = parseInt(numStr);
-          if (mapping[num] && !mapping[num].enFolderId) {
-            mapping[num].enFolderId = enEntry.enFolderId;
-            mapping[num].enFolderName = enEntry.enFolderName;
-            mapping[num].hasEnglishVersion = true;
-            supplemented++;
+  // STEP 1: Always seed from static table first (deterministic, no name-guessing)
+  let mapping = initStaticMapping();
+  console.log(`[Sync] Static mapping seeded: ${Object.keys(mapping).length} indicators`);
+
+  // STEP 2: Supplement with live auto-discover (both TH roots + both EN roots)
+  // Always run on force, or if any indicator is missing TH or EN folderId
+  const needsAutoDiscover = force ||
+    Object.values(mapping).some(m => m && !m.folderId) ||
+    Object.values(mapping).some(m => m && m.folderId && !m.enFolderId && !m._en47missing);
+  if (needsAutoDiscover) {
+    console.log("[Sync] Running auto-discover to supplement static mapping...");
+    try {
+      const discovery = await autoDiscoverMapping();
+      // Merge discovered mapping into static-seeded mapping (never overwrite static EN IDs)
+      let merged = 0;
+      for (const [numStr, entry] of Object.entries(discovery.mapping)) {
+        const num = parseInt(numStr);
+        if (!mapping[num]) mapping[num] = {};
+        // TH folder: use discovered if not locked and we got a real name (not "static")
+        if (entry.folderId && !mapping[num].locked && entry.source !== "static") {
+          if (mapping[num].folderId !== entry.folderId) {
+            mapping[num].folderId = entry.folderId;
+            mapping[num].folderName = entry.folderName;
+            mapping[num].cat = entry.cat;
+            merged++;
           }
         }
-        if (supplemented > 0) {
-          saveMapping(mapping);
-          console.log(`[Sync] Supplemented ${supplemented} indicators with EN folder IDs`);
+        // EN folder: only fill in if static table had no entry (static is authoritative)
+        if (entry.enFolderId && !mapping[num].enFolderId) {
+          mapping[num].enFolderId = entry.enFolderId;
+          mapping[num].enFolderName = entry.enFolderName;
+          mapping[num].hasEnglishVersion = true;
+          merged++;
         }
-      } catch (e) {
-        console.warn("[Sync] EN supplement failed:", e.message);
       }
+      if (merged > 0) {
+        saveMapping(mapping);
+        console.log(`[Sync] Auto-discover merged ${merged} additional entries`);
+      }
+    } catch (e) {
+      console.warn("[Sync] Auto-discover failed, using static mapping:", e.message);
     }
+  } else {
+    console.log("[Sync] Static mapping complete — skipping auto-discover");
   }
 
   const results = {};
@@ -1149,8 +1477,14 @@ async function fullSync(options = {}) {
         errors.push({ indicatorId: i, lang: "en", message: e.message });
       }
     } else {
-      // No EN folder in mapping — check if it can be detected as legacy subfolder inside TH folder
-      if (entry.hasEnglishVersion && thResult && thResult.englishVersionId) {
+      // No EN folder in mapping
+      if (i === 47) {
+        // Indicator 47 EN folder intentionally absent — WARNING only, not ERROR
+        console.log(`[Sync] Indicator 47: EN folder absent (expected missing per DRIVE_STRUCTURE.md) — WARNING`);
+        entry.validationIssues.push("47_English folder not yet created in Drive (expected missing)");
+        if (entry.validationStatus === "ok") entry.validationStatus = "warning";
+      } else if (entry.hasEnglishVersion && thResult && thResult.englishVersionId) {
+        // Legacy: EN as subfolder inside TH folder
         try {
           const enResult = await driveTraverseRecursive(thResult.englishVersionId, { lang: null });
           entry.enFileCount = enResult.files.length;
@@ -1162,8 +1496,9 @@ async function fullSync(options = {}) {
           entry.validationIssues.push(`EN subfolder traversal failed: ${e.message}`);
         }
       } else {
-        console.log(`[Sync] Indicator ${i}: no EN folder found (enFolderId missing, hasEnglishVersion=${entry.hasEnglishVersion})`);
+        console.log(`[Sync] Indicator ${i}: no EN folder found (enFolderId missing in both static table and mapping)`);
         entry.validationIssues.push("No English folder found for this indicator");
+        if (entry.validationStatus === "ok") entry.validationStatus = "warning";
       }
     }
 
@@ -1217,8 +1552,16 @@ async function fullSync(options = {}) {
 // === DRIVE CONNECTION TEST ===
 async function testDriveConnection() {
   try {
-    const folders = await driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID);
-    return { ok: true, folders: folders.length, names: folders.map(f => f.name) };
+    const [r2folders, r1folders] = await Promise.all([
+      driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID),
+      driveFolders(DRIVE_CONFIG.ROOT_FOLDER_ID_1)
+    ]);
+    return {
+      ok: true,
+      folders: r2folders.length + r1folders.length,
+      root2: { folders: r2folders.length, names: r2folders.map(f => f.name) },
+      root1: { folders: r1folders.length, names: r1folders.map(f => f.name) }
+    };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -1269,15 +1612,18 @@ let driveError = null;
 
 async function initDrive() {
   try {
+    // Seed static mapping immediately (synchronous, no API calls)
+    initStaticMapping();
+
     const test = await testDriveConnection();
     if (test.ok) {
-      console.log(`Drive connected: ${test.folders} folders found:`, test.names);
+      console.log(`Drive connected: ROOT_2=${test.root2?.folders ?? 0} folders, ROOT_1=${test.root1?.folders ?? 0} folders`);
       await buildDriveFolderMap();
       driveReady = true;
       driveLastSuccess = Date.now();
       startDriveHealthCheck();
 
-      // Run unified sync in background (auto-discovers mapping if none exists)
+      // Run unified sync in background (static mapping already seeded; auto-discover supplements)
       fullSync().then(() => {
         if (typeof render === 'function') render();
         console.log("[Drive] Background sync complete");
