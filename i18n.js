@@ -554,6 +554,9 @@ function catName(catId) {
   return cn ? cn[currentLang] : `Category ${catId}`;
 }
 
+// Apply i18n on first load
+document.addEventListener("DOMContentLoaded", updateStaticI18n);
+
 // Language toggle button HTML
 function langToggleHTML() {
   const cls = currentLang === "th" ? "th" : "en";
