@@ -270,6 +270,8 @@ function onHashChange() {
     currentView = adminUnlocked ? "admin" : "dashboard";
   } else if (h === "audit") {
     currentView = "audit";
+  } else if (h === "manual") {
+    currentView = "manual";
   } else {
     currentView = "dashboard";
   }
@@ -305,6 +307,7 @@ function render() {
   else if (currentView === "detail") app.innerHTML = renderDetail();
   else if (currentView === "admin" && adminUnlocked) app.innerHTML = renderAdmin();
   else if (currentView === "audit") app.innerHTML = renderAudit();
+  else if (currentView === "manual") app.innerHTML = renderManual();
   const vEl = app.querySelector("[data-view]");
   if (vEl) { vEl.classList.add("active", "fade-in"); }
   // Restore search focus in catalog
@@ -321,7 +324,7 @@ function render() {
 function updateNav() {
   document.querySelectorAll(".nav-pill").forEach(a => {
     const n = a.dataset.nav;
-    const isActive = n === currentView || (currentView === "detail" && n === "catalog") || (currentView === "admin" && n === "dashboard");
+    const isActive = n === currentView || (currentView === "detail" && n === "catalog") || (currentView === "admin" && n === "dashboard") || (currentView === "manual" && n === "manual");
     a.classList.toggle("active", isActive);
     a.classList.toggle("text-on-surface-variant", !isActive);
   });
@@ -354,6 +357,10 @@ function updateSidebar() {
     <a class="flex items-center space-x-3 px-3 py-2.5 ${currentView === "dashboard" ? "bg-white/80 text-emerald-800 font-bold rounded-lg" : "text-on-surface-variant hover:bg-white/50 rounded-lg"} cursor-pointer transition-all" onclick="navigate('dashboard')">
       <span class="material-symbols-outlined text-xl">dashboard</span>
       <span class="text-sm">${t("nav.dashboard")}</span>
+    </a>
+    <a class="flex items-center space-x-3 px-3 py-2.5 ${currentView === 'manual' ? 'bg-white/80 text-emerald-800 font-bold rounded-lg' : 'text-on-surface-variant hover:bg-white/50 rounded-lg'} cursor-pointer transition-all" onclick="navigate('manual')">
+      <span class="material-symbols-outlined text-xl">menu_book</span>
+      <span class="text-sm">${t('nav.manual')}</span>
     </a>
     ${stats.map(c => `
       <a class="flex items-center space-x-3 px-3 py-2.5 ${currentView === "catalog" && currentFilter.cat === c.id ? "bg-white/80 text-emerald-800 font-bold rounded-lg" : "text-on-surface-variant hover:bg-white/50 rounded-lg"} cursor-pointer transition-all group" onclick="navigate('catalog',{cat:${c.id},status:'',search:''})">
@@ -676,6 +683,196 @@ function renderAudit() {
   </div>`;
 }
 
+// === STAFF MANUAL DOWNLOAD HELPERS ===
+function downloadManualFile(type) {
+  let content, filename, mime;
+  const isEn = getLang() === 'en';
+
+  if (type === 'doc') {
+    filename = isEn ? 'Staff_Guide_84Indicators.doc' : 'คู่มือเจ้าหน้าที่_84ตัวชี้วัด.doc';
+    mime = 'application/msword';
+    content = `{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0 Angsana New;}{\\f1 TH SarabunPSK;}}\n{\\colortbl ;\\red10\\green61\\blue42;}\n\\paperw12240\\paperh15840\\margl1800\\margr1800\\margt1440\\margb1440\n\\f1\\fs28\\b\\cf1 ${isEn ? 'Staff Guide — 84 Indicators Google Drive Upload' : 'คู่มือเจ้าหน้าที่ — การอัปโหลดไฟล์หลักฐาน 84 ตัวชี้วัด'}\\b0\\cf0\\par\n\\f1\\fs22\\par\n${isEn ? '1. Folder Structure Rules\\par\\tab- Root: หมวด 1-6 (Thai) / English Version (English)\\par\\tab- Level 2: Indicator folder (numbered)\\par\\tab- Level 3-5: Subfolders (any name)\\par\\par 2. English Version Usage\\par\\tab- Files for EN must go in English Version > Category > N_English folder\\par\\tab- Example: English Version / 1.Visitor Management / 1_English / file.pdf\\par\\par 3. Common Mistakes\\par\\tab- Do NOT upload EN files inside TH category folders\\par\\tab- Do NOT create duplicate indicator folders\\par\\tab- File names must not contain special characters' : '1. กฎโครงสร้างโฟลเดอร์\\par\\tab- Root: หมวด 1-6 (ภาษาไทย) / English Version (ภาษาอังกฤษ)\\par\\tab- ระดับ 2: โฟลเดอร์ตัวชี้วัด (ระบุหมายเลข)\\par\\tab- ระดับ 3-5: โฟลเดอร์ย่อย (ตั้งชื่อเอง)\\par\\par 2. การใช้ English Version\\par\\tab- ไฟล์ภาษาอังกฤษต้องอยู่ใน English Version > หมวด > N_English\\par\\tab- ตัวอย่าง: English Version / 1.Visitor Management / 1_English / file.pdf\\par\\par 3. ข้อผิดพลาดที่พบบ่อย\\par\\tab- อย่าอัปโหลดไฟล์ EN ไว้ในโฟลเดอร์หมวดภาษาไทย\\par\\tab- อย่าสร้างโฟลเดอร์ตัวชี้วัดซ้ำกัน\\par\\tab- ชื่อไฟล์ต้องไม่มีอักขระพิเศษ'}\\par\n}`;
+  } else if (type === 'xls') {
+    filename = isEn ? 'Evidence_Template_84Indicators.xls' : 'แบบฟอร์มหลักฐาน_84ตัวชี้วัด.xls';
+    mime = 'application/vnd.ms-excel';
+    content = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0A3D2A" ss:Pattern="Solid"/></Style><Style ss:ID="s"><Font ss:Bold="1"/><Interior ss:Color="#E8F5E9" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="${isEn ? 'Evidence Template' : 'แบบฟอร์มหลักฐาน'}"><Table><Row><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Indicator #' : 'ตัวชี้วัดข้อที่'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Category' : 'หมวด'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Indicator Name' : 'ชื่อตัวชี้วัด'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Drive Folder Name' : 'ชื่อโฟลเดอร์ Drive'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'File Count (TH)' : 'จำนวนไฟล์ (ไทย)'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'File Count (EN)' : 'จำนวนไฟล์ (อังกฤษ)'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Status' : 'สถานะ'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Responsible Agency' : 'หน่วยงานรับผิดชอบ'}</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">${isEn ? 'Notes' : 'หมายเหตุ'}</Data></Cell></Row>${D.slice(0, 84).map(d => `<Row><Cell><Data ss:Type="Number">${d[0]}</Data></Cell><Cell><Data ss:Type="Number">${d[1]}</Data></Cell><Cell><Data ss:Type="String">${(d[3] || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell><Cell><Data ss:Type="String">${d[6] === 'c' ? (isEn ? 'Completed' : 'ดำเนินการแล้ว') : d[6] === 'p' ? (isEn ? 'In Progress' : 'กำลังดำเนินการ') : (isEn ? 'Pending' : 'รอดำเนินการ')}</Data></Cell><Cell><Data ss:Type="String">${(d[5] || '').replace(/\|/g, ', ').replace(/&/g, '&amp;')}</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>`).join('')}</Table></Worksheet></Workbook>`;
+  } else if (type === 'pdf') {
+    filename = isEn ? 'Staff_Guide_84Indicators.pdf' : 'คู่มือเจ้าหน้าที่_84ตัวชี้วัด.pdf';
+    mime = 'application/pdf';
+    const title = isEn ? 'Staff Guide - 84 Indicators' : 'คู่มือเจ้าหน้าที่ 84 ตัวชี้วัด';
+    const lines = isEn
+      ? ['Staff Guide — 84 Indicators Google Drive Upload System', '', '1. Folder Structure Rules', '   Root Level: หมวด 1-6 (Thai folders) | English Version (EN folder)', '   Level 2: Indicator folder (e.g. 1ผู้ประสานงาน or 1_English)', '   Level 3-5: Subfolders with any name (max depth = 3)', '', '2. English Version Upload', '   - Files must be placed inside: English Version > Category > N_English', '   - Example: English Version / 1.Visitor Management / 1_English / evidence.pdf', '   - Do NOT mix EN files with TH category folders', '', '3. File Naming Rules', '   - Avoid special characters in filenames', '   - Use descriptive names: e.g. GSTC_Report_2026.pdf', '   - Supported: PDF, DOCX, XLSX, JPG, PNG', '', '4. Common Mistakes to Avoid', '   - Uploading EN evidence in TH category folders', '   - Creating duplicate indicator folders', '   - Leaving subfolder empty without files', '   - Wrong folder depth (max 3 levels from indicator)', '', '5. Sync Schedule', '   - System auto-syncs every 5 minutes', '   - Manual sync: Admin Panel > Refresh button', '   - Cache clears automatically on language switch']
+      : ['คู่มือเจ้าหน้าที่ — ระบบอัปโหลดไฟล์หลักฐาน 84 ตัวชี้วัด', '', '1. กฎโครงสร้างโฟลเดอร์', '   ระดับ Root: หมวด 1-6 (โฟลเดอร์ภาษาไทย) | English Version (โฟลเดอร์อังกฤษ)', '   ระดับ 2: โฟลเดอร์ตัวชี้วัด (เช่น 1ผู้ประสานงาน หรือ 1_English)', '   ระดับ 3-5: โฟลเดอร์ย่อย ตั้งชื่อเองได้ (ความลึกสูงสุด = 3 ชั้น)', '', '2. การอัปโหลดเวอร์ชันภาษาอังกฤษ', '   - ไฟล์ต้องอยู่ใน: English Version > หมวด > N_English', '   - ตัวอย่าง: English Version / 1.Visitor Management / 1_English / evidence.pdf', '   - ห้ามวางไฟล์ EN ไว้ในโฟลเดอร์หมวดภาษาไทย', '', '3. กฎการตั้งชื่อไฟล์', '   - หลีกเลี่ยงอักขระพิเศษในชื่อไฟล์', '   - ใช้ชื่อที่สื่อความหมาย เช่น รายงาน_GSTC_2569.pdf', '   - รองรับ: PDF, DOCX, XLSX, JPG, PNG', '', '4. ข้อผิดพลาดที่พบบ่อย', '   - อัปโหลดหลักฐาน EN ไว้ในโฟลเดอร์หมวดภาษาไทย', '   - สร้างโฟลเดอร์ตัวชี้วัดซ้ำ', '   - ทิ้งโฟลเดอร์ย่อยไว้โดยไม่มีไฟล์', '   - ความลึกโฟลเดอร์เกิน 3 ชั้น', '', '5. รอบการซิงค์ข้อมูล', '   - ระบบซิงค์อัตโนมัติทุก 5 นาที', '   - ซิงค์ด้วยตนเอง: Admin Panel > ปุ่ม Refresh', '   - แคชล้างอัตโนมัติเมื่อเปลี่ยนภาษา'];
+    content = `%PDF-1.4\n1 0 obj<</Type /Catalog /Pages 2 0 R>>endobj\n2 0 obj<</Type /Pages /Kids[3 0 R] /Count 1>>endobj\n3 0 obj<</Type /Page /Parent 2 0 R /MediaBox[0 0 595 842] /Contents 4 0 R /Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length ${lines.length * 20 + 200}>>stream\nBT /F1 14 Tf 50 800 Td (${title.replace(/[()\\]/g, '\\$&')}) Tj\n/F1 10 Tf\n${lines.map((l, i) => `0 -${i === 0 ? 0 : 18} Td (${l.replace(/[()\\]/g, '\\$&').replace(/[^\x20-\x7E]/g, '?')}) Tj`).join('\n')}\nET\nendstream\nendobj\n5 0 obj<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000266 00000 n\n0000000560 00000 n\ntrailer<</Size 6 /Root 1 0 R>>\nstartxref\n641\n%%EOF`;
+  }
+
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`⬇ ${t('manual.download.started')}: ${filename}`);
+}
+
+// === STAFF MANUAL VIEW ===
+function renderManual() {
+  const L = getLang();
+  const sections = [
+    {
+      icon: 'upload_file',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      title: t('manual.section.upload.title'),
+      steps: [
+        t('manual.step.upload.1'),
+        t('manual.step.upload.2'),
+        t('manual.step.upload.3'),
+        t('manual.step.upload.4'),
+      ]
+    },
+    {
+      icon: 'folder_open',
+      color: 'text-river-blue',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      title: t('manual.section.structure.title'),
+      steps: [
+        t('manual.step.struct.1'),
+        t('manual.step.struct.2'),
+        t('manual.step.struct.3'),
+        t('manual.step.struct.4'),
+      ]
+    },
+    {
+      icon: 'translate',
+      color: 'text-indigo-600',
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-200',
+      title: t('manual.section.english.title'),
+      steps: [
+        t('manual.step.en.1'),
+        t('manual.step.en.2'),
+        t('manual.step.en.3'),
+      ]
+    },
+    {
+      icon: 'account_tree',
+      color: 'text-deep-teak',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+      title: t('manual.section.subfolder.title'),
+      steps: [
+        t('manual.step.sub.1'),
+        t('manual.step.sub.2'),
+        t('manual.step.sub.3'),
+      ]
+    },
+    {
+      icon: 'warning',
+      color: 'text-red-600',
+      bg: 'bg-red-50',
+      border: 'border-red-200',
+      title: t('manual.section.mistakes.title'),
+      steps: [
+        t('manual.step.mistake.1'),
+        t('manual.step.mistake.2'),
+        t('manual.step.mistake.3'),
+        t('manual.step.mistake.4'),
+      ]
+    }
+  ];
+
+  return `<div data-view="manual" class="px-4 md:px-8 py-6 max-w-4xl w-full mx-auto space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-2xl p-6 md:p-8 space-y-2">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:linear-gradient(135deg,#0A3D2A,#0D6B3F)">
+          <span class="material-symbols-outlined text-white text-2xl">menu_book</span>
+        </div>
+        <div>
+          <h1 class="text-2xl font-headline font-extrabold text-on-surface">${t('manual.title')}</h1>
+          <p class="text-xs text-on-surface-variant">${t('manual.subtitle')}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Download Section -->
+    <div class="bg-white rounded-2xl p-6 space-y-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-deep-teak">download</span>
+        <h2 class="font-headline font-bold text-on-surface">${t('manual.download.title')}</h2>
+      </div>
+      <p class="text-xs text-on-surface-variant">${t('manual.download.desc')}</p>
+      <div class="flex flex-wrap gap-3">
+        <button onclick="downloadManualFile('pdf')" class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:linear-gradient(135deg,#dc2626,#b91c1c)">
+          <span class="material-symbols-outlined text-base">picture_as_pdf</span>
+          ${t('manual.download.pdf')}
+        </button>
+        <button onclick="downloadManualFile('doc')" class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:linear-gradient(135deg,#1d4ed8,#1e40af)">
+          <span class="material-symbols-outlined text-base">description</span>
+          ${t('manual.download.doc')}
+        </button>
+        <button onclick="downloadManualFile('xls')" class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]" style="background:linear-gradient(135deg,#15803d,#166534)">
+          <span class="material-symbols-outlined text-base">table_chart</span>
+          ${t('manual.download.xls')}
+        </button>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <span class="flex items-center gap-1 text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100"><span class="material-symbols-outlined" style="font-size:11px">picture_as_pdf</span> PDF — ${t('manual.file.pdf.desc')}</span>
+        <span class="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100"><span class="material-symbols-outlined" style="font-size:11px">description</span> DOC — ${t('manual.file.doc.desc')}</span>
+        <span class="flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100"><span class="material-symbols-outlined" style="font-size:11px">table_chart</span> XLS — ${t('manual.file.xls.desc')}</span>
+      </div>
+    </div>
+
+    <!-- Guide Sections -->
+    ${sections.map((s, idx) => `
+    <div class="bg-white rounded-2xl p-6 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center border ${s.border}">
+          <span class="material-symbols-outlined ${s.color} text-lg">${s.icon}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background:#0A3D2A">${idx + 1}</span>
+          <h2 class="font-headline font-bold text-on-surface">${s.title}</h2>
+        </div>
+      </div>
+      <div class="space-y-2 pl-12">
+        ${s.steps.map(step => `
+          <div class="flex items-start gap-2.5">
+            <span class="material-symbols-outlined ${s.color} mt-0.5 flex-shrink-0" style="font-size:14px">chevron_right</span>
+            <p class="text-sm text-on-surface-variant font-thai leading-relaxed">${step}</p>
+          </div>`).join('')}
+      </div>
+    </div>`).join('')}
+
+    <!-- Drive Structure Quick Reference -->
+    <div class="bg-white rounded-2xl p-6 space-y-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-on-surface-variant">schema</span>
+        <h2 class="font-headline font-bold text-on-surface">${t('manual.section.structure.ref')}</h2>
+      </div>
+      <div class="font-mono text-[11px] bg-gray-50 rounded-xl p-4 space-y-1 border border-outline-variant/20 overflow-x-auto">
+        <div class="text-emerald-700 font-bold">Root (16SyUIAG…)</div>
+        <div class="pl-4 text-on-surface">├── หมวด 1 การจัดการแหล่งท่องเที่ยว/</div>
+        <div class="pl-8 text-on-surface-variant">├── 1ผู้ประสานงาน/</div>
+        <div class="pl-12 text-on-surface-variant/70">│   └── รูปภาพ/ → ภาพ ปี 66/ → ไฟล์</div>
+        <div class="pl-4 text-on-surface">├── หมวด 3, 4, 6 …</div>
+        <div class="pl-4 text-indigo-700 font-bold">└── English Version/ (1hNi__LP…)</div>
+        <div class="pl-8 text-indigo-600">├── 1.Visitor Management/</div>
+        <div class="pl-12 text-indigo-500">│   ├── 1_English/ → files</div>
+        <div class="pl-12 text-indigo-500">│   └── 2_English/ → files</div>
+        <div class="pl-8 text-indigo-600">└── 3.Water management/</div>
+        <div class="pl-12 text-indigo-500">    └── 29_English/ → files</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 // === ADMIN VIEW ===
 function renderAdmin() {
   const L = getLang();
@@ -806,6 +1003,7 @@ function renderAdmin() {
         <span class="material-symbols-outlined text-deep-teak">bug_report</span>
         <h2 class="font-headline font-bold text-on-surface">${t("admin.debug.title")}</h2>
         <span class="ml-auto text-[10px] text-on-surface-variant">${t("admin.debug.subtitle")}</span>
+        <span class="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100 ml-2">EN Folder ID = ${Object.keys(mapping).filter(k => mapping[k] && mapping[k].enFolderId).length}/${Object.keys(mapping).filter(k => mapping[k] && mapping[k].folderId).length} mapped</span>
       </div>
       <div class="overflow-x-auto -mx-6 px-6">
         <table class="w-full text-[11px] border-collapse">
@@ -813,15 +1011,16 @@ function renderAdmin() {
             <tr class="border-b-2 border-outline-variant/20 text-left">
               <th class="py-2 px-2 font-bold text-on-surface-variant">#</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.indicator')}</th>
-              <th class="py-2 px-2 font-bold text-on-surface-variant">Folder ID</th>
-              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">TH</th>
-              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">EN</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant">TH Folder ID</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-indigo-700">EN Folder ID</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">TH Files</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">EN Files</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.subfolders')}</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t('admin.depth')}</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t('admin.status.header')}</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t("admin.debug.validation")}</th>
               <th class="py-2 px-2 font-bold text-on-surface-variant">${t("sync.lastSynced")}</th>
-              <th class="py-2 px-2 font-bold text-on-surface-variant">${t('admin.lock.header')}</th>
+              <th class="py-2 px-2 font-bold text-on-surface-variant text-center">${t('admin.debug.resync')}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
@@ -857,10 +1056,11 @@ function renderAdminDebugRows(mapping, syncState, L) {
     const indicator = D[i - 1];
     const title = indicator ? (indicator[3] || "").substring(0, 25) : "—";
 
-    const fId = m.folderId ? m.folderId.substring(0, 12) + "…" : "—";
+    const fId = m.folderId ? `<span title="${m.folderId}" class="cursor-help">${m.folderId.substring(0, 12)}…</span>` : "—";
+    const enFId = m.enFolderId ? `<span title="${m.enFolderId}" class="cursor-help text-indigo-600">${m.enFolderId.substring(0, 12)}…</span>` : '<span class="text-gray-300">—</span>';
     const thFiles = se.thFileCount !== undefined ? se.thFileCount : "—";
     const enFiles = se.enFileCount !== undefined ? se.enFileCount : "—";
-    const hasEn = se.hasEnglishVersion || m.hasEnglishVersion;
+    const hasEn = se.hasEnglishVersion || m.hasEnglishVersion || !!m.enFolderId;
     const depth = se.thDepth !== undefined ? se.thDepth : "—";
     const vStatus = se.validationStatus || (m.folderId ? "unknown" : "error");
     const lastSync = se.lastSyncedAt ? new Date(se.lastSyncedAt).toLocaleTimeString(L === "en" ? "en-US" : "th-TH", { hour: "2-digit", minute: "2-digit" }) : "—";
@@ -891,9 +1091,10 @@ function renderAdminDebugRows(mapping, syncState, L) {
     rows += `<tr class="${rowBg} hover:bg-surface-container-low/30 transition-colors">
       <td class="py-1.5 px-2"><span class="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold" style="background:${cat ? cat.cl : "#888"}">${i}</span></td>
       <td class="py-1.5 px-2 max-w-[120px]"><span class="truncate block" title="${title}">${title}</span></td>
-      <td class="py-1.5 px-2 font-mono text-[10px] ${m.folderId ? "text-on-surface" : "text-red-400"}" title="${m.folderId || ""}">${fId}</td>
-      <td class="py-1.5 px-2 text-center font-bold ${thFiles > 0 ? "text-river-blue" : "text-red-400"}">${thFiles}</td>
-      <td class="py-1.5 px-2 text-center font-bold ${enFiles > 0 ? "text-river-blue" : "text-gray-400"}">${enFiles}${hasEn ? ' <span class="text-[8px] text-blue-500">✓</span>' : ''}</td>
+      <td class="py-1.5 px-2 font-mono text-[10px] ${m.folderId ? 'text-on-surface' : 'text-red-400'}">${fId}</td>
+      <td class="py-1.5 px-2 font-mono text-[10px]">${enFId}</td>
+      <td class="py-1.5 px-2 text-center font-bold ${thFiles > 0 ? 'text-river-blue' : 'text-red-400'}">${thFiles}</td>
+      <td class="py-1.5 px-2 text-center font-bold ${enFiles > 0 ? 'text-indigo-600' : hasEn ? 'text-amber-400' : 'text-gray-300'}">${enFiles}${hasEn ? ' <span class="text-[8px] text-indigo-400">EN</span>' : ''}</td>
       <td class="py-1.5 px-2 max-w-[180px]"><div class="flex flex-wrap">${subfolderDisplay}</div></td>
       <td class="py-1.5 px-2 text-center text-on-surface-variant">${depth}</td>
       <td class="py-1.5 px-2 text-center">
@@ -905,9 +1106,7 @@ function renderAdminDebugRows(mapping, syncState, L) {
       </td>
       <td class="py-1.5 px-2 text-center"><span class="inline-flex items-center gap-0.5 ${vColor} ${vBg} px-1.5 py-0.5 rounded-full" title="${(se.validationIssues || []).join('; ')}"><span class="material-symbols-outlined" style="font-size:11px">${vIcon}</span></span></td>
       <td class="py-1.5 px-2 text-on-surface-variant">${lastSync}</td>
-      <td class="py-1.5 px-2 text-center">${isLocked
-        ? `<span class="material-symbols-outlined text-emerald-600" style="font-size:14px" title="Locked: ${m.locked}">lock</span>`
-        : `<span class="material-symbols-outlined text-gray-400" style="font-size:14px" title="Unlocked">lock_open</span>`}</td>
+      <td class="py-1.5 px-2 text-center"><button onclick="refreshSingleIndicator(${i})" title="Force resync indicator ${i}" class="w-5 h-5 rounded flex items-center justify-center hover:bg-surface-container-low transition-colors"><span class="material-symbols-outlined text-on-surface-variant hover:text-emerald-600" style="font-size:12px">refresh</span></button></td>
     </tr>`;
   }
   return rows;
@@ -1404,8 +1603,8 @@ function renderDetail() {
       <h1 class="text-2xl md:text-3xl font-headline font-extrabold text-on-surface leading-tight mb-4">${item.title}</h1>
       <div class="absolute -bottom-8 -right-8 w-32 h-32 rounded-full blur-3xl" style="background:${cat.cl}10"></div>
     </div>
-    <!-- Status Criteria Card -->
-    ${(function () {
+    <!-- Status Criteria Card (Admin only) -->
+    ${adminUnlocked ? (function () {
       const cfg = {
         c: { bg: "bg-emerald-50", border: "border-emerald-200/60", icon: "check_circle", iconColor: "text-emerald-600", titleColor: "text-emerald-800", descColor: "text-emerald-700", needsBg: "bg-emerald-100", needsColor: "text-emerald-700" },
         p: { bg: "bg-amber-50", border: "border-amber-200/60", icon: "pending", iconColor: "text-amber-500", titleColor: "text-amber-800", descColor: "text-amber-700", needsBg: "bg-amber-100", needsColor: "text-amber-700" },
@@ -1425,9 +1624,9 @@ function renderDetail() {
           ${next ? `<div class="flex items-center gap-1.5 mt-1"><span class="text-[10px] px-2 py-0.5 rounded-full ${c.needsBg} ${c.needsColor} font-mono flex-shrink-0">${item.status === "w" ? "w→p" : "p→c"}</span><p class="text-[11px] ${c.descColor}">${next}</p></div>` : ""}
         </div>
       </div>`;
-    })()}
-    <!-- Mapping Verification -->
-    <div class="bg-white rounded-2xl p-6 md:p-8 space-y-4">
+    })() : ""}
+    <!-- Mapping Verification (Admin only) -->
+    ${adminUnlocked ? `<div class="bg-white rounded-2xl p-6 md:p-8 space-y-4">
       <div class="flex items-center space-x-2 mb-2">
         <span class="material-symbols-outlined text-river-blue">verified</span>
         <h2 class="font-headline font-bold text-on-surface">${t("detail.mapping.title")}</h2>
@@ -1438,7 +1637,7 @@ function renderDetail() {
           ${t("drive.connecting")}
         </div>
       </div>
-    </div>
+    </div>` : ""}
     <!-- Description -->
     <div class="bg-white rounded-2xl p-6 md:p-8 space-y-4">
       <div class="flex items-center space-x-2 mb-2">

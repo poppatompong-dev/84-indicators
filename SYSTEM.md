@@ -4,7 +4,13 @@
 > **Last updated:** Mar 2026 · Developed by: นักวิชาการคอมพิวเตอร์, เทศบาลเมืองอุทัยธานี  
 > **Stack:** Vanilla JS + Tailwind CSS (CDN) · No build step · Served via HTTP
 
-### Changelog (latest — 19 Mar 2026)
+### Changelog (latest — 24 Mar 2026)
+- **Public/Admin Separation**: "Status Criteria Card" and "Mapping Verification" sections hidden from public detail view — visible in Admin mode only. Public evaluators see only the evidence section and feedback form.
+- **Staff Manual**: New `/manual` route added. Full bilingual guide (TH/EN) covering Drive upload rules, folder structure, English Version usage, subfolder nesting, and common mistakes. Three downloadable files generated client-side via Blob API: `.pdf` (read-only guide), `.doc` (RTF, editable in Word), `.xls` (SpreadsheetML template with all 84 indicators). Accessible from sidebar under "คู่มือเจ้าหน้าที่ / Staff Manual".
+- **Data Integrity Debug Table**: Added EN Folder ID column (indigo, truncated with hover tooltip for full ID). Added "EN Folder ID mapped" counter badge showing how many indicators have `enFolderId` vs total mapped. Per-row force-resync button added. TH/EN file count columns clearly labelled. EN file count color-coded: indigo (>0), amber (EN folder exists but 0 files), gray (no EN folder).
+- **Admin-Only Verification**: All technical verification data (folder IDs, mismatch badges, sync state, validation issues) restricted to Admin Panel and Admin-unlocked detail view. Public UI shows only status badges and evidence.
+
+### Changelog (previous — 19 Mar 2026)
 - **File Summary**: Evidence section shows file-type breakdown (PDF ×3, Image ×5, …) with colored pills + total size  
 - **Thumbnails**: All file types (PDF, Doc, Sheets, etc.) now show Drive cover-page thumbnails — not just images  
 - **Admin Status Override**: Admin can change indicator status (w→p→c) via dropdown in detail view; stored in `localStorage` key `84status`; "Overridden" badge + reset-to-original button  
