@@ -307,31 +307,49 @@ const DRIVE_QUOTA = {
 
 const driveQuota = {
   _key() { return "driveQuota_" + new Date().toISOString().slice(0, 10); },
+  _mem: null, // in-memory cache — avoids localStorage round-trip on every call
+  _dirty: false,
+  _flushThreshold: 10, // flush to localStorage every N calls
   _load() {
+    if (this._mem) return this._mem;
     try {
       const raw = localStorage.getItem(this._key());
-      if (raw) return JSON.parse(raw);
+      if (raw) { this._mem = JSON.parse(raw); return this._mem; }
     } catch (e) { }
-    return { calls: 0, cacheHits: 0, errors: 0, firstCall: null, lastCall: null };
+    this._mem = { calls: 0, cacheHits: 0, errors: 0, firstCall: null, lastCall: null };
+    return this._mem;
   },
-  _save(d) { try { localStorage.setItem(this._key(), JSON.stringify(d)); } catch (e) { } },
+  _save(force) {
+    if (!this._mem) return;
+    // Flush to localStorage every _flushThreshold calls or when forced
+    if (force || this._mem.calls % this._flushThreshold === 0) {
+      try { localStorage.setItem(this._key(), JSON.stringify(this._mem)); this._dirty = false; } catch (e) { }
+    } else {
+      this._dirty = true;
+    }
+  },
+  _flush() {
+    if (this._dirty && this._mem) {
+      try { localStorage.setItem(this._key(), JSON.stringify(this._mem)); this._dirty = false; } catch (e) { }
+    }
+  },
   trackCall() {
     const d = this._load();
     d.calls++;
     if (!d.firstCall) d.firstCall = Date.now();
     d.lastCall = Date.now();
-    this._save(d);
+    this._save();
     this._notifyUI();
   },
   trackCacheHit() {
     const d = this._load();
     d.cacheHits++;
-    this._save(d);
+    this._dirty = true; // defer flush — cache hits are low-value writes
   },
   trackError() {
     const d = this._load();
     d.errors++;
-    this._save(d);
+    this._save(true); // always flush errors immediately
   },
   getStats() {
     const d = this._load();
@@ -357,14 +375,18 @@ const driveQuota = {
     };
   },
   reset() {
+    this._mem = null;
+    this._dirty = false;
     try { localStorage.removeItem(this._key()); } catch (e) { }
     this._notifyUI();
   },
   _notifyUI() {
-    // Trigger UI update if quota bar exists
     if (typeof updateQuotaBar === "function") updateQuotaBar();
   }
 };
+
+// Flush quota to localStorage on page unload so counts are never lost
+window.addEventListener("beforeunload", () => driveQuota._flush());
 
 // === CORE API CALL (with retry + quota guard) ===
 
@@ -1049,124 +1071,150 @@ async function driveFilesForCategory(catId) {
   return driveListAll(folderId);
 }
 
+// === INDICATOR RESULT CACHE ===
+// Caches driveFilesForIndicator results per indicator+lang to avoid re-traversal on re-open.
+// Invalidated by refreshSingleIndicator() or force resync.
+const _indicatorResultCache = {}; // { `${id}_th` | `${id}_en`: { result, ts } }
+const _INDICATOR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function _clearIndicatorCache(indicatorId) {
+  delete _indicatorResultCache[`${indicatorId}_th`];
+  delete _indicatorResultCache[`${indicatorId}_en`];
+}
+function _clearAllIndicatorCache() {
+  Object.keys(_indicatorResultCache).forEach(k => delete _indicatorResultCache[k]);
+}
+
 // === GET FILES FOR A SPECIFIC INDICATOR (deterministic mapping + recursive + language-aware) ===
 // Returns { files[], tree, subfolders[], docContent, matchedFolder, traversal, validation, hasEnglishVersion }
 // EN model: uses enFolderId from mapping (separate EN root folder N_English), NOT a subfolder of TH folder.
 async function driveFilesForIndicator(indicatorId, catId, useEnglish = false) {
+  const cacheKey = `${indicatorId}_${useEnglish ? 'en' : 'th'}`;
+  const cached = _indicatorResultCache[cacheKey];
+  if (cached && Date.now() - cached.ts < _INDICATOR_CACHE_TTL) {
+    console.log(`[Drive] Indicator ${indicatorId} ${useEnglish ? 'EN' : 'TH'}: serving from result cache`);
+    return cached.result;
+  }
+
   const mapping = getMappingForIndicator(indicatorId);
 
-  if (useEnglish) {
-    // --- ENGLISH MODE: use enFolderId from mapping (EN root → N_English folder) ---
-    const enFolderId = mapping?.enFolderId || null;
+  async function _fetch() {
+    if (useEnglish) {
+      // --- ENGLISH MODE: use enFolderId from mapping (EN root → N_English folder) ---
+      const enFolderId = mapping?.enFolderId || null;
 
-    if (enFolderId) {
+      if (enFolderId) {
+        try {
+          const result = await driveTraverseRecursive(enFolderId, { lang: null }); // full traversal inside EN indicator folder
+          console.log(`[Drive] Indicator ${indicatorId} EN: folder=${mapping.enFolderName}, files=${result.files.length}, depth=${result.depth}`);
+          let docContent = null;
+          const firstDoc = result.files.find(f => f.mimeType === "application/vnd.google-apps.document");
+          if (firstDoc) {
+            try { docContent = await driveDocContent(firstDoc.id); } catch (e) { console.warn(`[Drive] EN doc fetch failed for ${indicatorId}:`, e.message); }
+          }
+          return {
+            files: result.files,
+            tree: result.tree,
+            subfolders: result.subfolders,
+            docContent,
+            matchedFolder: { name: mapping.enFolderName || `${indicatorId}_English`, id: enFolderId },
+            traversal: { depth: result.depth, errors: result.errors, visitedCount: result.visitedCount },
+            validation: result.errors.length > 0
+              ? { status: "warning", issues: result.errors.map(e => `Traversal error: ${e.message}`) }
+              : null,
+            hasEnglishVersion: true
+          };
+        } catch (e) {
+          return {
+            files: [], tree: null, subfolders: [], docContent: null, matchedFolder: null,
+            traversal: { depth: 0, errors: [{ folderId: enFolderId, depth: 0, message: e.message }], visitedCount: 0 },
+            validation: { status: "error", issues: [`EN traversal failed: ${e.message}`] },
+            hasEnglishVersion: false
+          };
+        }
+      }
+
+      // enFolderId not in mapping — check legacy English Version subfolder inside TH folder
+      const thFolderId = mapping?.folderId || null;
+      if (thFolderId) {
+        try {
+          const thFolderItems = await driveFolders(thFolderId);
+          const enSubfolder = thFolderItems.find(f => f.name.trim() === ENGLISH_VERSION_FOLDER);
+          if (enSubfolder) {
+            console.log(`[Drive] Indicator ${indicatorId} EN: legacy subfolder found (${enSubfolder.id})`);
+            const result = await driveTraverseRecursive(enSubfolder.id, { lang: null });
+            return {
+              files: result.files,
+              tree: result.tree,
+              subfolders: result.subfolders,
+              docContent: null,
+              matchedFolder: { name: ENGLISH_VERSION_FOLDER, id: enSubfolder.id },
+              traversal: { depth: result.depth, errors: result.errors, visitedCount: result.visitedCount },
+              validation: null,
+              hasEnglishVersion: true
+            };
+          }
+        } catch (e) {
+          console.warn(`[Drive] EN legacy subfolder check failed for ${indicatorId}:`, e.message);
+        }
+      }
+
+      // No EN data found for this indicator
+      console.log(`[Drive] Indicator ${indicatorId}: no EN folder found (enFolderId=${enFolderId}, hasEnglishVersion=${mapping?.hasEnglishVersion})`);
+      return {
+        files: [], tree: null, subfolders: [], docContent: null,
+        matchedFolder: mapping?.folderName ? { name: mapping.folderName, id: mapping.folderId } : null,
+        traversal: { depth: 0, errors: [], visitedCount: 0 },
+        validation: { status: "error", issues: ["Incomplete English data — no English folder found for this indicator"] },
+        hasEnglishVersion: false
+      };
+    }
+
+    // --- THAI MODE: use folderId from mapping, traverse excluding English Version ---
+    const folderId = mapping?.folderId || null;
+    if (folderId) {
       try {
-        const result = await driveTraverseRecursive(enFolderId, { lang: null }); // full traversal inside EN indicator folder
-        console.log(`[Drive] Indicator ${indicatorId} EN: folder=${mapping.enFolderName}, files=${result.files.length}, depth=${result.depth}`);
+        const result = await driveTraverseRecursive(folderId, { lang: "th" });
+        console.log(`[Drive] Indicator ${indicatorId} TH: folder=${mapping.folderName}, files=${result.files.length}, depth=${result.depth}`);
         let docContent = null;
         const firstDoc = result.files.find(f => f.mimeType === "application/vnd.google-apps.document");
         if (firstDoc) {
-          try { docContent = await driveDocContent(firstDoc.id); } catch (e) { console.warn(`[Drive] EN doc fetch failed for ${indicatorId}:`, e.message); }
+          try { docContent = await driveDocContent(firstDoc.id); } catch (e) { console.warn(`[Drive] TH doc fetch failed for ${indicatorId}:`, e.message); }
         }
         return {
           files: result.files,
           tree: result.tree,
           subfolders: result.subfolders,
           docContent,
-          matchedFolder: { name: mapping.enFolderName || `${indicatorId}_English`, id: enFolderId },
+          matchedFolder: { name: mapping.folderName || "Mapped Folder", id: folderId },
           traversal: { depth: result.depth, errors: result.errors, visitedCount: result.visitedCount },
           validation: result.errors.length > 0
             ? { status: "warning", issues: result.errors.map(e => `Traversal error: ${e.message}`) }
             : null,
-          hasEnglishVersion: true
+          hasEnglishVersion: result.hasEnglishVersion || !!mapping.enFolderId
         };
       } catch (e) {
         return {
           files: [], tree: null, subfolders: [], docContent: null, matchedFolder: null,
-          traversal: { depth: 0, errors: [{ folderId: enFolderId, depth: 0, message: e.message }], visitedCount: 0 },
-          validation: { status: "error", issues: [`EN traversal failed: ${e.message}`] },
+          traversal: { depth: 0, errors: [{ folderId, depth: 0, message: e.message }], visitedCount: 0 },
+          validation: { status: "error", issues: [`Traversal failed: ${e.message}`] },
           hasEnglishVersion: false
         };
       }
     }
 
-    // enFolderId not in mapping — check legacy English Version subfolder inside TH folder
-    const thFolderId = mapping?.folderId || null;
-    if (thFolderId) {
-      try {
-        // Quick scan to find English Version subfolder
-        const thFolderItems = await driveFolders(thFolderId);
-        const enSubfolder = thFolderItems.find(f => f.name.trim() === ENGLISH_VERSION_FOLDER);
-        if (enSubfolder) {
-          console.log(`[Drive] Indicator ${indicatorId} EN: legacy subfolder found (${enSubfolder.id})`);
-          const result = await driveTraverseRecursive(enSubfolder.id, { lang: null });
-          return {
-            files: result.files,
-            tree: result.tree,
-            subfolders: result.subfolders,
-            docContent: null,
-            matchedFolder: { name: ENGLISH_VERSION_FOLDER, id: enSubfolder.id },
-            traversal: { depth: result.depth, errors: result.errors, visitedCount: result.visitedCount },
-            validation: null,
-            hasEnglishVersion: true
-          };
-        }
-      } catch (e) {
-        console.warn(`[Drive] EN legacy subfolder check failed for ${indicatorId}:`, e.message);
-      }
-    }
-
-    // No EN data found for this indicator
-    console.log(`[Drive] Indicator ${indicatorId}: no EN folder found (enFolderId=${enFolderId}, hasEnglishVersion=${mapping?.hasEnglishVersion})`);
+    // No mapping at all
     return {
-      files: [], tree: null, subfolders: [], docContent: null,
-      matchedFolder: mapping?.folderName ? { name: mapping.folderName, id: mapping.folderId } : null,
-      traversal: { depth: 0, errors: [], visitedCount: 0 },
-      validation: { status: "error", issues: ["Incomplete English data — no English folder found for this indicator"] },
+      files: [], tree: null, subfolders: [], docContent: null, matchedFolder: null,
+      traversal: null,
+      validation: { status: "error", issues: ["No folder mapping for this indicator — run Auto-Discover in Admin panel"] },
       hasEnglishVersion: false
     };
   }
 
-  // --- THAI MODE: use folderId from mapping, traverse excluding English Version ---
-  const folderId = mapping?.folderId || null;
-  if (folderId) {
-    try {
-      const result = await driveTraverseRecursive(folderId, { lang: "th" });
-      console.log(`[Drive] Indicator ${indicatorId} TH: folder=${mapping.folderName}, files=${result.files.length}, depth=${result.depth}`);
-      let docContent = null;
-      const firstDoc = result.files.find(f => f.mimeType === "application/vnd.google-apps.document");
-      if (firstDoc) {
-        try { docContent = await driveDocContent(firstDoc.id); } catch (e) { console.warn(`[Drive] TH doc fetch failed for ${indicatorId}:`, e.message); }
-      }
-      return {
-        files: result.files,
-        tree: result.tree,
-        subfolders: result.subfolders,
-        docContent,
-        matchedFolder: { name: mapping.folderName || "Mapped Folder", id: folderId },
-        traversal: { depth: result.depth, errors: result.errors, visitedCount: result.visitedCount },
-        validation: result.errors.length > 0
-          ? { status: "warning", issues: result.errors.map(e => `Traversal error: ${e.message}`) }
-          : null,
-        hasEnglishVersion: result.hasEnglishVersion || !!mapping.enFolderId
-      };
-    } catch (e) {
-      return {
-        files: [], tree: null, subfolders: [], docContent: null, matchedFolder: null,
-        traversal: { depth: 0, errors: [{ folderId, depth: 0, message: e.message }], visitedCount: 0 },
-        validation: { status: "error", issues: [`Traversal failed: ${e.message}`] },
-        hasEnglishVersion: false
-      };
-    }
-  }
-
-  // No mapping at all
-  return {
-    files: [], tree: null, subfolders: [], docContent: null, matchedFolder: null,
-    traversal: null,
-    validation: { status: "error", issues: ["No folder mapping for this indicator — run Auto-Discover in Admin panel"] },
-    hasEnglishVersion: false
-  };
+  const result = await _fetch();
+  _indicatorResultCache[cacheKey] = { result, ts: Date.now() };
+  return result;
 }
 
 // === VALIDATION LAYER ===
@@ -1387,80 +1435,69 @@ async function fullSync(options = {}) {
   }
 
   const results = {};
-  let totalThFiles = 0;
-  let totalEnFiles = 0;
   const errors = [];
+  const SYNC_CONCURRENCY = 8; // indicators fetched in parallel per chunk
 
-  for (let i = 1; i <= 84; i++) {
-    const m = mapping[i];
-    if (!m || !m.folderId) {
-      results[i] = {
-        lastSyncedAt: null, thFileCount: 0, enFileCount: 0, thFiles: [], enFiles: [],
-        validationStatus: "error", validationIssues: ["No mapping"],
-        hasEnglishVersion: false, subfolderNames: [], thDepth: 0, enDepth: 0
-      };
-      continue;
-    }
-
-    // Check quota before each indicator
-    const q = driveQuota.getStats();
-    if (q.pct >= 90) {
-      console.warn(`[Sync] Quota at ${q.pct}% — stopping sync to protect budget`);
-      errors.push({ indicatorId: i, message: `Sync stopped: API quota at ${q.pct}%` });
-      break;
-    }
-
+  // Helper: sync a single indicator (TH + EN in parallel)
+  async function syncSingleIndicator(indicatorId, m) {
     const entry = {
       lastSyncedAt: Date.now(),
       thFileCount: 0, enFileCount: 0,
       thFiles: [], enFiles: [],
       validationStatus: "ok", validationIssues: [],
       hasEnglishVersion: false,
-      subfolderNames: [],   // All subfolder names (excluding English Version)
+      subfolderNames: [],
       thSubfolders: 0, enSubfolders: 0,
       thDepth: 0, enDepth: 0,
-      subfolderFileCount: {} // { folderName: fileCount }
+      subfolderFileCount: {}
     };
 
-    // TH traversal (excludes "English Version")
-    let thResult = null;
-    try {
-      thResult = await driveTraverseRecursive(m.folderId, { lang: "th" });
+    const enFolderId = m.enFolderId || null;
+
+    // TH and EN traverse in parallel per indicator
+    const [thResult, enResult] = await Promise.all([
+      driveTraverseRecursive(m.folderId, { lang: "th" }).catch(e => {
+        entry.validationStatus = "error";
+        entry.validationIssues.push(`TH traversal failed: ${e.message}`);
+        errors.push({ indicatorId, lang: "th", message: e.message });
+        return null;
+      }),
+      enFolderId
+        ? driveTraverseRecursive(enFolderId, { lang: null }).catch(e => {
+          if (entry.validationStatus === "ok") entry.validationStatus = "warning";
+          entry.validationIssues.push(`EN traversal failed: ${e.message}`);
+          errors.push({ indicatorId, lang: "en", message: e.message });
+          return null;
+        })
+        : Promise.resolve(null)
+    ]);
+
+    // Process TH result
+    if (thResult) {
       entry.thFileCount = thResult.files.length;
       entry.thFiles = thResult.files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, link: f.webViewLink, _folderName: f._folderName }));
       entry.thDepth = thResult.depth;
       entry.thSubfolders = thResult.subfolders.length;
       entry.hasEnglishVersion = thResult.hasEnglishVersion;
-
-      // Extract subfolder names and per-subfolder file counts from tree
       if (thResult.tree) {
         for (const child of thResult.tree.children) {
           entry.subfolderNames.push(child.name);
           entry.subfolderFileCount[child.name] = countTreeFiles(child);
         }
-        // Root-level files
         if (thResult.tree.files.length > 0) {
           entry.subfolderFileCount["(root)"] = thResult.tree.files.length;
         }
       }
-
       if (thResult.errors.length > 0) {
         entry.validationIssues.push(`TH traversal: ${thResult.errors.length} error(s)`);
         if (entry.validationStatus === "ok") entry.validationStatus = "warning";
       }
-      totalThFiles += thResult.files.length;
-    } catch (e) {
-      entry.validationStatus = "error";
-      entry.validationIssues.push(`TH traversal failed: ${e.message}`);
-      errors.push({ indicatorId: i, lang: "th", message: e.message });
     }
 
-    // EN traversal: use enFolderId from mapping (separate EN root, not subfolder of TH)
-    const enFolderId = m.enFolderId || null;
+    // Process EN result
     if (enFolderId) {
       entry.hasEnglishVersion = true;
-      try {
-        const enResult = await driveTraverseRecursive(enFolderId, { lang: null }); // traverse entire EN indicator folder
+      if (enResult) {
         entry.enFileCount = enResult.files.length;
         entry.enFiles = enResult.files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, link: f.webViewLink, _folderName: f._folderName }));
         entry.enDepth = enResult.depth;
@@ -1469,52 +1506,73 @@ async function fullSync(options = {}) {
           entry.validationIssues.push(`EN traversal: ${enResult.errors.length} error(s)`);
           if (entry.validationStatus === "ok") entry.validationStatus = "warning";
         }
-        totalEnFiles += enResult.files.length;
-        console.log(`[Sync] Indicator ${i} EN: folder=${m.enFolderName}, files=${entry.enFileCount}, depth=${entry.enDepth}`);
-      } catch (e) {
-        if (entry.validationStatus === "ok") entry.validationStatus = "warning";
-        entry.validationIssues.push(`EN traversal failed: ${e.message}`);
-        errors.push({ indicatorId: i, lang: "en", message: e.message });
+        console.log(`[Sync] Indicator ${indicatorId} EN: folder=${m.enFolderName}, files=${entry.enFileCount}, depth=${entry.enDepth}`);
       }
     } else {
-      // No EN folder in mapping
-      if (i === 47) {
-        // Indicator 47 EN folder intentionally absent — WARNING only, not ERROR
-        console.log(`[Sync] Indicator 47: EN folder absent (expected missing per DRIVE_STRUCTURE.md) — WARNING`);
+      if (indicatorId === 47) {
         entry.validationIssues.push("47_English folder not yet created in Drive (expected missing)");
         if (entry.validationStatus === "ok") entry.validationStatus = "warning";
       } else if (entry.hasEnglishVersion && thResult && thResult.englishVersionId) {
         // Legacy: EN as subfolder inside TH folder
         try {
-          const enResult = await driveTraverseRecursive(thResult.englishVersionId, { lang: null });
-          entry.enFileCount = enResult.files.length;
-          entry.enFiles = enResult.files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, link: f.webViewLink, _folderName: f._folderName }));
-          entry.enDepth = enResult.depth;
-          totalEnFiles += enResult.files.length;
-          console.log(`[Sync] Indicator ${i} EN (legacy subfolder): files=${entry.enFileCount}`);
+          const legacyEn = await driveTraverseRecursive(thResult.englishVersionId, { lang: null });
+          entry.enFileCount = legacyEn.files.length;
+          entry.enFiles = legacyEn.files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, link: f.webViewLink, _folderName: f._folderName }));
+          entry.enDepth = legacyEn.depth;
         } catch (e) {
           entry.validationIssues.push(`EN subfolder traversal failed: ${e.message}`);
         }
       } else {
-        console.log(`[Sync] Indicator ${i}: no EN folder found (enFolderId missing in both static table and mapping)`);
         entry.validationIssues.push("No English folder found for this indicator");
         if (entry.validationStatus === "ok") entry.validationStatus = "warning";
       }
     }
 
-    // Validation: TH folder has no files
     if (entry.thFileCount === 0) {
       if (entry.validationStatus === "ok") entry.validationStatus = "warning";
       entry.validationIssues.push("Folder exists but has no TH files");
     }
 
-    // Update mapping with hasEnglishVersion flag
-    if (mapping[i]) {
-      mapping[i].hasEnglishVersion = entry.hasEnglishVersion;
-    }
-
-    results[i] = entry;
+    return entry;
   }
+
+  // Collect indicator IDs to sync; fill errors for unmapped indicators
+  const indicatorIds = [];
+  for (let i = 1; i <= 84; i++) {
+    const m = mapping[i];
+    if (!m || !m.folderId) {
+      results[i] = {
+        lastSyncedAt: null, thFileCount: 0, enFileCount: 0, thFiles: [], enFiles: [],
+        validationStatus: "error", validationIssues: ["No mapping"],
+        hasEnglishVersion: false, subfolderNames: [], thDepth: 0, enDepth: 0
+      };
+    } else {
+      indicatorIds.push(i);
+    }
+  }
+
+  // Process in chunks of SYNC_CONCURRENCY with quota guard between chunks
+  const syncStartTime = Date.now();
+  for (let offset = 0; offset < indicatorIds.length; offset += SYNC_CONCURRENCY) {
+    const q = driveQuota.getStats();
+    if (q.pct >= 90) {
+      console.warn(`[Sync] Quota at ${q.pct}% — stopping sync to protect budget`);
+      const remaining = indicatorIds.slice(offset);
+      remaining.forEach(id => errors.push({ indicatorId: id, message: `Sync stopped: API quota at ${q.pct}%` }));
+      break;
+    }
+    const chunk = indicatorIds.slice(offset, offset + SYNC_CONCURRENCY);
+    const chunkResults = await Promise.all(chunk.map(i => syncSingleIndicator(i, mapping[i])));
+    chunkResults.forEach((entry, idx) => {
+      const id = chunk[idx];
+      results[id] = entry;
+      if (mapping[id]) mapping[id].hasEnglishVersion = entry.hasEnglishVersion;
+    });
+  }
+
+  const totalThFiles = Object.values(results).reduce((s, e) => s + (e.thFileCount || 0), 0);
+  const totalEnFiles = Object.values(results).reduce((s, e) => s + (e.enFileCount || 0), 0);
+  console.log(`[Sync] Parallel sync finished in ${Date.now() - syncStartTime}ms`);
 
   // Save updated mapping (with hasEnglishVersion flags)
   saveMapping(mapping);

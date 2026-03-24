@@ -2058,11 +2058,12 @@ async function loadHeroImage() {
 }
 
 async function refreshSingleIndicator(indicatorId) {
-  // Invalidate cached data for this indicator so loadDriveForDetail fetches fresh
+  // Invalidate all cached data for this indicator so loadDriveForDetail fetches fresh
   const cachePrefix = `ind_${indicatorId}_`;
   if (typeof driveCache !== "undefined") {
     Object.keys(driveCache).forEach(k => { if (k.startsWith(cachePrefix)) delete driveCache[k]; });
   }
+  if (typeof _clearIndicatorCache === "function") _clearIndicatorCache(indicatorId);
   showToast(`${t('refresh.btn')} #${indicatorId}...`);
   await loadDriveForDetail(indicatorId);
 }
@@ -2300,6 +2301,7 @@ async function refreshDriveData() {
 
   // Clear all caches and invalidate stale data
   Object.keys(driveCache).forEach(k => delete driveCache[k]);
+  if (typeof _clearAllIndicatorCache === "function") _clearAllIndicatorCache();
   driveFolderMapReady = false;
   driveReady = false;
   driveError = null;
@@ -2460,9 +2462,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.documentElement.lang = getLang();
   initNavScroll();
   onHashChange();
-  await initDrive();
+
+  // Paint immediately from cached localStorage data — no API wait
   rebuildDriveStatusMap();
   render();
   renderFloatingQuota();
   startDashboardAutoRefresh();
+
+  // Initialize Drive in background; re-render when sync completes
+  initDrive().then(() => {
+    rebuildDriveStatusMap();
+    render();
+    renderFloatingQuota();
+  }).catch(e => console.warn("[Init] Drive init failed:", e.message));
 });
