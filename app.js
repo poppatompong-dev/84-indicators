@@ -21,22 +21,22 @@
 let adminUnlocked = (function () { try { return sessionStorage.getItem('84admin') === '1'; } catch (e) { return false; } })();
 
 function promptAdmin() {
-  const pw = prompt("🔐 รหัสผ่าน Admin:");
+  const pw = prompt(t('admin.prompt.password'));
   if (pw === null) return;
   if (pw === 'admin123') {
     try { sessionStorage.setItem('84admin', '1'); } catch (e) { }
     adminUnlocked = true;
     navigate('admin');
-    showToast('🔓 Admin Mode เปิดแล้ว');
+    showToast(t('admin.mode.opened'));
   } else {
-    alert('รหัสผิด');
+    alert(t('admin.wrong.password'));
   }
 }
 
 function lockAdmin() {
   try { sessionStorage.removeItem('84admin'); } catch (e) { }
   adminUnlocked = false;
-  showToast('🔒 Admin Mode ปิดแล้ว');
+  showToast(t('admin.mode.locked'));
   navigate('dashboard');
 }
 
@@ -218,16 +218,16 @@ function saveFeedbackFromForm(indicatorId) {
   if (!el) return;
   const text = el.value.trim();
   const rating = ratingEl ? ratingEl.value : '';
-  if (!text) { showToast('กรุณากรอกข้อความ'); return; }
-  const data = { text, rating, author: 'ผู้ตรวจประเมิน', ts: new Date().toISOString() };
+  if (!text) { showToast(t('feedback.required')); return; }
+  const data = { text, rating, author: t('feedback.author'), ts: new Date().toISOString() };
   saveFeedback(indicatorId, data);
-  showToast('✅ บันทึกข้อเสนอแนะแล้ว');
+  showToast(t('feedback.saved'));
   render();
 }
 function clearFeedback(indicatorId) {
-  if (!confirm('ลบข้อเสนอแนะนี้?')) return;
+  if (!confirm(t('feedback.confirm.delete'))) return;
   deleteFeedback(indicatorId);
-  showToast('ลบข้อเสนอแนะแล้ว');
+  showToast(t('feedback.deleted'));
   render();
 }
 
@@ -312,7 +312,7 @@ function render() {
   if (vEl) { vEl.classList.add("active", "fade-in"); }
   // Restore search focus in catalog
   if (currentView === "catalog" && currentFilter.search) {
-    const si = app.querySelector("input[placeholder*='ค้นหา'], input[placeholder*='Search']");
+    const si = app.querySelector("input#cat-search, input[id*='Search'], input[placeholder]");
     if (si) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
   }
   // Update static i18n elements
@@ -858,10 +858,10 @@ function renderManual() {
       </div>
       <div class="font-mono text-[11px] bg-gray-50 rounded-xl p-4 space-y-1 border border-outline-variant/20 overflow-x-auto">
         <div class="text-emerald-700 font-bold">Root (16SyUIAG…)</div>
-        <div class="pl-4 text-on-surface">├── หมวด 1 การจัดการแหล่งท่องเที่ยว/</div>
-        <div class="pl-8 text-on-surface-variant">├── 1ผู้ประสานงาน/</div>
-        <div class="pl-12 text-on-surface-variant/70">│   └── รูปภาพ/ → ภาพ ปี 66/ → ไฟล์</div>
-        <div class="pl-4 text-on-surface">├── หมวด 3, 4, 6 …</div>
+        <div class="pl-4 text-on-surface">├── ${t('manual.diagram.cat1')}</div>
+        <div class="pl-8 text-on-surface-variant">├── ${t('manual.diagram.indicator')}</div>
+        <div class="pl-12 text-on-surface-variant/70">│   └── ${t('manual.diagram.subfolder')}</div>
+        <div class="pl-4 text-on-surface">├── ${t('manual.diagram.cats346')}</div>
         <div class="pl-4 text-indigo-700 font-bold">└── English Version/ (1hNi__LP…)</div>
         <div class="pl-8 text-indigo-600">├── 1.Visitor Management/</div>
         <div class="pl-12 text-indigo-500">│   ├── 1_English/ → files</div>
@@ -1597,7 +1597,7 @@ function renderDetail() {
         <div class="flex items-center gap-2">
           <span class="px-3 py-1 rounded-full text-xs font-bold ${st.cls}">${st.label}</span>
           ${item.statusOverridden ? `<span class="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 font-bold">${t('audit.override.label')}</span>` : ''}
-          ${adminUnlocked ? `<div class="relative" id="statusChanger-${item.id}"><button onclick="document.getElementById('statusMenu-${item.id}').classList.toggle('hidden')" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors" aria-label="เปลี่ยนสถานะ" title="เปลี่ยนสถานะ"><span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span></button><div id="statusMenu-${item.id}" class="hidden absolute right-0 top-8 z-20 bg-white rounded-xl shadow-xl border border-outline-variant/20 p-1.5 min-w-[180px] space-y-0.5">${['c', 'p', 'w'].map(k => { const s2 = STATUS_MAP[k]; return `<button onclick="changeIndicatorStatus(${item.id},'${k}')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors ${item.status === k ? 'bg-surface-container-low' : ''}"><span class="w-2 h-2 rounded-full ${k === 'c' ? 'bg-emerald-500' : k === 'p' ? 'bg-amber-500' : 'bg-gray-400'}"></span>${s2.label}${item.status === k ? ' ✓' : ''}</button>`; }).join('')}${item.statusOverridden ? `<hr class="my-1 border-outline-variant/15"/><button onclick="resetIndicatorStatus(${item.id})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-error hover:bg-red-50 transition-colors"><span class="material-symbols-outlined text-sm">undo</span>${t('status.reset.btn')}</button>` : ''}</div></div>` : ''}
+          ${adminUnlocked ? `<div class="relative" id="statusChanger-${item.id}"><button onclick="document.getElementById('statusMenu-${item.id}').classList.toggle('hidden')" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors" aria-label="${t('status.change.aria')}" title="${t('status.change.aria')}"><span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span></button><div id="statusMenu-${item.id}" class="hidden absolute right-0 top-8 z-20 bg-white rounded-xl shadow-xl border border-outline-variant/20 p-1.5 min-w-[180px] space-y-0.5">${['c', 'p', 'w'].map(k => { const s2 = STATUS_MAP[k]; return `<button onclick="changeIndicatorStatus(${item.id},'${k}')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors ${item.status === k ? 'bg-surface-container-low' : ''}"><span class="w-2 h-2 rounded-full ${k === 'c' ? 'bg-emerald-500' : k === 'p' ? 'bg-amber-500' : 'bg-gray-400'}"></span>${s2.label}${item.status === k ? ' ✓' : ''}</button>`; }).join('')}${item.statusOverridden ? `<hr class="my-1 border-outline-variant/15"/><button onclick="resetIndicatorStatus(${item.id})" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-error hover:bg-red-50 transition-colors"><span class="material-symbols-outlined text-sm">undo</span>${t('status.reset.btn')}</button>` : ''}</div></div>` : ''}
         </div>
       </div>
       <h1 class="text-2xl md:text-3xl font-headline font-extrabold text-on-surface leading-tight mb-4">${item.title}</h1>

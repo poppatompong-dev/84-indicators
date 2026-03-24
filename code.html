@@ -470,24 +470,24 @@
 
 <body class="bg-surface font-body text-on-surface flex min-h-screen">
   <!-- Skip Navigation -->
-  <a href="#app" class="skip-nav">ข้ามไปยังเนื้อหาหลัก</a>
+  <a href="#app" class="skip-nav" data-i18n="skip.nav">Skip to main content</a>
   <!-- Mobile Overlay -->
   <div id="mobileOverlay" class="fixed inset-0 bg-black/40 z-40 hidden" onclick="toggleMobile()" aria-hidden="true"></div>
   <!-- Sidebar -->
-  <aside id="sidebar" role="complementary" aria-label="หมวดหมู่ตัวชี้วัด"
+  <aside id="sidebar" role="complementary" aria-label="Indicator categories" data-i18n-aria="sidebar.aria"
     class="fixed left-0 top-0 h-screen w-64 teak-texture p-4 z-50 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300 no-print">
     <div class="flex items-center space-x-3 px-2 py-4 mb-4">
       <div class="w-10 h-10 bg-velvet-gradient rounded-lg flex items-center justify-center text-white"><span
           class="material-symbols-outlined">eco</span></div>
       <div>
-        <h2 class="font-headline font-extrabold text-primary leading-tight text-sm">อุทัยธานี</h2>
-        <p class="text-[10px] text-on-surface-variant">Green Destination • 84 ตัวชี้วัด</p>
+        <h2 class="font-headline font-extrabold text-primary leading-tight text-sm" data-i18n-sidebar-brand>Uthai Thani</h2>
+        <p class="text-[10px] text-on-surface-variant" data-i18n="app.subtitle">Green Destination • 84 Indicators</p>
       </div>
     </div>
-    <nav id="sideNav" aria-label="หมวดหมู่" class="flex-1 space-y-1 overflow-y-auto"></nav>
+    <nav id="sideNav" aria-label="Categories" data-i18n-aria="nav.sidebar.aria" class="flex-1 space-y-1 overflow-y-auto"></nav>
     <div class="pt-4 border-t border-outline-variant/15">
-      <button onclick="navigate('dashboard')" aria-label="ไปยังแดชบอร์ด"
-        class="w-full bg-velvet-gradient text-white py-3 rounded-xl font-bold text-sm hover:scale-[1.02] transition-transform">แดชบอร์ด</button>
+      <button onclick="navigate('dashboard')" aria-label="Go to Dashboard" data-i18n="nav.dashboard" data-i18n-aria-key="nav.dashboard"
+        class="w-full bg-velvet-gradient text-white py-3 rounded-xl font-bold text-sm hover:scale-[1.02] transition-transform">Dashboard</button>
     </div>
   </aside>
   <!-- Main Content -->
@@ -497,10 +497,10 @@
       class="navbar-glass sticky top-0 z-30 flex justify-between items-center w-full px-4 md:px-8 py-2.5 no-print">
       <!-- Left: Brand + Nav -->
       <div class="flex items-center gap-3">
-        <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors" onclick="toggleMobile()" aria-label="เปิดเมนู" aria-expanded="false" aria-controls="sidebar">
+        <button class="md:hidden text-on-surface-variant hover:text-primary transition-colors" onclick="toggleMobile()" aria-label="Open menu" data-i18n-aria="nav.open.menu" aria-expanded="false" aria-controls="sidebar">
           <span class="material-symbols-outlined text-xl" aria-hidden="true">menu</span>
         </button>
-        <div class="flex items-center gap-2.5 cursor-pointer group" onclick="navigate('dashboard')" role="button" aria-label="The Living Portfolio — ไปยังหน้าแรก" tabindex="0">
+        <div class="flex items-center gap-2.5 cursor-pointer group" onclick="navigate('dashboard')" role="button" aria-label="The Living Portfolio — Go to home" data-i18n-aria="nav.brand.aria" tabindex="0">
           <div class="brand-leaf group-hover:scale-110 transition-transform">
             <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1" aria-hidden="true">eco</span>
           </div>
@@ -511,7 +511,7 @@
             </div>
           </div>
         </div>
-        <nav class="hidden lg:flex items-center gap-1 ml-4 bg-surface-container-low/60 rounded-full p-1" aria-label="เมนูหลัก">
+        <nav class="hidden lg:flex items-center gap-1 ml-4 bg-surface-container-low/60 rounded-full p-1" aria-label="Main navigation" data-i18n-aria="nav.main.aria">
           <a class="nav-pill font-headline cursor-pointer text-on-surface-variant" data-nav="dashboard"
             onclick="navigate('dashboard')" role="button" aria-current="page">
             <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px" aria-hidden="true">dashboard</span>
@@ -520,7 +520,7 @@
           <a class="nav-pill font-headline cursor-pointer text-on-surface-variant" data-nav="catalog"
             onclick="navigate('catalog')" role="button">
             <span class="material-symbols-outlined text-sm align-middle mr-0.5" style="font-size:15px" aria-hidden="true">checklist</span>
-            <span data-i18n="nav.indicators">ตัวชี้วัด 84 ข้อ</span>
+            <span data-i18n="nav.indicators">Indicators</span>
           </a>
           <a class="nav-pill font-headline cursor-pointer text-on-surface-variant" data-nav="audit"
             onclick="navigate('audit')" role="button">
@@ -537,16 +537,16 @@
       <div class="flex items-center gap-2">
         <div class="search-glass hidden sm:flex items-center px-3 py-1.5 gap-1.5">
           <span class="material-symbols-outlined text-on-surface-variant text-sm">search</span>
-          <input id="globalSearch" role="searchbox" aria-label="ค้นหาตัวชี้วัด"
+          <input id="globalSearch" role="searchbox" aria-label="Search indicators" data-i18n-aria="search.aria"
             class="bg-transparent border-none focus:ring-0 focus:outline-none text-sm placeholder:text-on-surface-variant/60 w-32 lg:w-40 font-thai"
-            placeholder="ค้นหาตัวชี้วัด..." oninput="onGlobalSearch(this.value)" />
+            placeholder="Search indicators..." oninput="onGlobalSearch(this.value)" />
         </div>
-        <button id="refreshBtn" onclick="refreshDriveData()" title="Refresh Drive data" aria-label="ดึงข้อมูลใหม่จาก Drive"
+        <button id="refreshBtn" onclick="refreshDriveData()" title="Refresh Drive data" aria-label="Refresh Drive data" data-i18n-aria="refresh.btn.aria"
           class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-emerald-forest hover:bg-emerald-50 transition-all">
           <span class="material-symbols-outlined text-lg" aria-hidden="true">refresh</span>
         </button>
-        <div id="langToggle" aria-label="เปลี่ยนภาษา"></div>
-        <div class="avatar-ring" role="img" aria-label="เทศบาลเมืองอุทัยธานี">
+        <div id="langToggle" aria-label="Switch language" data-i18n-aria="lang.toggle.aria"></div>
+        <div class="avatar-ring" role="img" aria-label="Uthai Thani Municipality" data-i18n-aria="org.aria">
           <div aria-hidden="true">UT</div>
         </div>
       </div>
@@ -557,14 +557,14 @@
     <footer class="mt-auto bg-surface border-t border-outline-variant/10 pt-5 pb-4 no-print">
       <div class="max-w-7xl mx-auto px-4 md:px-8 space-y-3">
         <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
-          <p class="text-xs text-on-surface-variant">&copy; 2569 (2026) อุทัยธานี Green Destination Portfolio — GSTC</p>
-          <span class="text-xs text-on-surface-variant select-none cursor-default" id="adminTrigger" title="">เทศบาลเมืองอุทัยธานี • Green Destinations Standard</span>
+          <p class="text-xs text-on-surface-variant" data-i18n="app.footer.copy">&copy; 2026 Uthai Thani Green Destination Portfolio — GSTC</p>
+          <span class="text-xs text-on-surface-variant select-none cursor-default" id="adminTrigger" title="" data-i18n="app.footer.org">Uthai Thani Municipality • Green Destinations Standard</span>
         </div>
         <div class="border-t border-outline-variant/10 pt-3 flex flex-col sm:flex-row items-center justify-between gap-1.5">
-          <p class="text-[10px] text-on-surface-variant/60 font-medium">
-            พัฒนาโดย <span class="text-emerald-forest font-bold">นักวิชาการคอมพิวเตอร์</span> • เทศบาลเมืองอุทัยธานี
+          <p class="text-[10px] text-on-surface-variant/60 font-medium" data-i18n-footer-dev>
+            Developed by <span class="text-emerald-forest font-bold">IT Officer</span> • Uthai Thani Municipality
           </p>
-          <p class="text-[10px] italic font-medium" style="color:#C8952E">"ข้อมูลที่ดี คือรากฐานของป่าที่แข็งแรง"</p>
+          <p class="text-[10px] italic font-medium" data-i18n="footer.slogan" style="color:#C8952E">"Good data is the root of a resilient forest"</p>
         </div>
       </div>
     </footer>

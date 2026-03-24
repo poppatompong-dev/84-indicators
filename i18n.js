@@ -355,6 +355,38 @@ const T = {
   "submit.step5.title": { th: "ผลการประเมิน", en: "Final Result" },
   "submit.step5.desc": { th: "Green Destinations ประกาศผล หากผ่านการรับรอง อุทัยธานีจะเข้าสู่ Top 100 อย่างเป็นทางการ", en: "Results are announced by Green Destinations. If certified, Uthai Thani enters the Top 100 list." },
 
+  // === ADMIN PROMPTS / TOASTS ===
+  "admin.prompt.password": { th: "🔐 รหัสผ่าน Admin:", en: "🔐 Admin Password:" },
+  "admin.mode.opened": { th: "🔓 Admin Mode เปิดแล้ว", en: "🔓 Admin Mode enabled" },
+  "admin.mode.locked": { th: "🔒 Admin Mode ปิดแล้ว", en: "🔒 Admin Mode locked" },
+  "admin.wrong.password": { th: "รหัสผิด", en: "Incorrect password" },
+
+  // === FEEDBACK FORM ===
+  "feedback.required": { th: "กรุณากรอกข้อความ", en: "Please enter feedback text" },
+  "feedback.author": { th: "ผู้ตรวจประเมิน", en: "Evaluator" },
+  "feedback.saved": { th: "✅ บันทึกข้อเสนอแนะแล้ว", en: "✅ Feedback saved" },
+  "feedback.confirm.delete": { th: "ลบข้อเสนอแนะนี้?", en: "Delete this feedback?" },
+  "feedback.deleted": { th: "ลบข้อเสนอแนะแล้ว", en: "Feedback deleted" },
+
+  // === ARIA LABELS (accessibility) ===
+  "skip.nav": { th: "ข้ามไปยังเนื้อหาหลัก", en: "Skip to main content" },
+  "sidebar.aria": { th: "หมวดหมู่ตัวชี้วัด", en: "Indicator categories" },
+  "nav.open.menu": { th: "เปิดเมนู", en: "Open menu" },
+  "nav.brand.aria": { th: "The Living Portfolio — ไปยังหน้าแรก", en: "The Living Portfolio — Go to home" },
+  "nav.main.aria": { th: "เมนูหลัก", en: "Main navigation" },
+  "nav.sidebar.aria": { th: "หมวดหมู่", en: "Categories" },
+  "search.aria": { th: "ค้นหาตัวชี้วัด", en: "Search indicators" },
+  "refresh.btn.aria": { th: "ดึงข้อมูลใหม่จาก Drive", en: "Refresh Drive data" },
+  "lang.toggle.aria": { th: "เปลี่ยนภาษา", en: "Switch language" },
+  "org.aria": { th: "เทศบาลเมืองอุทัยธานี", en: "Uthai Thani Municipality" },
+  "status.change.aria": { th: "เปลี่ยนสถานะ", en: "Change status" },
+
+  // === MANUAL FOLDER DIAGRAM ===
+  "manual.diagram.cat1": { th: "หมวด 1 การจัดการแหล่งท่องเที่ยว/", en: "Category 1 Destination Management/" },
+  "manual.diagram.indicator": { th: "1ผู้ประสานงาน/", en: "1_Coordinator/" },
+  "manual.diagram.subfolder": { th: "รูปภาพ/ → ภาพ ปี 66/ → ไฟล์", en: "Photos/ → GSTC Year 66/ → file" },
+  "manual.diagram.cats346": { th: "หมวด 3, 4, 6 …", en: "Categories 3, 4, 6 …" },
+
   // === FEEDBACK ===
   "detail.feedback.recorded": { th: "มีข้อเสนอแนะแล้ว", en: "Feedback recorded" },
   "detail.feedback.rating.aria": { th: "คะแนน", en: "Rating" },
@@ -538,32 +570,45 @@ function toggleLang() {
 function getLang() { return currentLang; }
 
 function updateStaticI18n() {
-  // Footer
-  const footerPs = document.querySelectorAll("footer p");
-  const f2 = document.querySelector("footer span#adminTrigger");
-  if (footerPs[0]) footerPs[0].textContent = t("app.footer.copy");
-  if (f2) f2.textContent = t("app.footer.org");
-  if (footerPs[1]) {
-    footerPs[1].innerHTML = t("footer.dev").replace("นักวิชาการคอมพิวเตอร์", `<span class="text-emerald-forest font-bold">นักวิชาการคอมพิวเตอร์</span>`).replace("IT Officer", `<span class="text-emerald-forest font-bold">IT Officer</span>`);
-  }
-  const sloganEl = document.querySelector("footer p.italic");
-  if (sloganEl) sloganEl.textContent = t("footer.slogan");
-  // Global search
-  const gs = document.getElementById("globalSearch");
-  if (gs) gs.placeholder = t("search.placeholder");
-  // Nav pill catalog label (uses data-i18n span)
+  // === data-i18n: update textContent for all tagged elements ===
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const key = el.getAttribute("data-i18n");
     if (key) el.textContent = t(key);
   });
-  // Sidebar brand
-  const brandTitle = document.querySelector("#sidebar h2");
-  const brandSub = document.querySelector("#sidebar h2 + p");
+
+  // === data-i18n-aria: update aria-label for all tagged elements ===
+  document.querySelectorAll("[data-i18n-aria]").forEach(el => {
+    const key = el.getAttribute("data-i18n-aria");
+    if (key) el.setAttribute("aria-label", t(key));
+  });
+
+  // === data-i18n-aria-key: sync aria-label with same key as textContent ===
+  document.querySelectorAll("[data-i18n-aria-key]").forEach(el => {
+    const key = el.getAttribute("data-i18n-aria-key");
+    if (key) el.setAttribute("aria-label", t(key));
+  });
+
+  // === Sidebar brand title (bilingual, not a translation key) ===
+  const brandTitle = document.querySelector("[data-i18n-sidebar-brand]");
   if (brandTitle) brandTitle.textContent = currentLang === "en" ? "Uthai Thani" : "อุทัยธานี";
-  if (brandSub) brandSub.textContent = t("app.subtitle");
-  // Sidebar bottom button
-  const sideBtn = document.querySelector("#sidebar .border-t button");
-  if (sideBtn) sideBtn.textContent = t("nav.dashboard");
+
+  // === Footer developer credit (language-aware, contains bold span) ===
+  const footerDevEl = document.querySelector("[data-i18n-footer-dev]");
+  if (footerDevEl) {
+    const raw = t("footer.dev");
+    // Wrap the job title portion in bold span regardless of language
+    const boldified = raw
+      .replace("นักวิชาการคอมพิวเตอร์", `<span class="text-emerald-forest font-bold">นักวิชาการคอมพิวเตอร์</span>`)
+      .replace("IT Officer", `<span class="text-emerald-forest font-bold">IT Officer</span>`);
+    footerDevEl.innerHTML = boldified;
+  }
+
+  // === Global search placeholder + aria-label ===
+  const gs = document.getElementById("globalSearch");
+  if (gs) {
+    gs.placeholder = t("search.placeholder");
+    gs.setAttribute("aria-label", t("search.aria"));
+  }
 
   // Welcome language switcher state
   const welcomeLangTh = document.getElementById("welcomeLangTH");
